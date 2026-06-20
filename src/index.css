@@ -1,1 +1,53 @@
 
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #fbfaf5;
+  --surface: #ffffff;
+  --ink: #16241d;
+  --ink-soft: #5c6b62;
+  --line: #e8e2d4;
+  --primary: #0e7a53;
+  --primary-dk: #0b5c3f;
+  --primary-lt: #e3f3ea;
+  --accent: #ff6b45;
+  --accent-lt: #ffe7dd;
+  --gold: #e0a23b;
+  --gold-lt: #fbeeda;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: contain;
+}
+
+.font-display {
+  font-family: "Fraunces", serif;
+}
+
+.font-body {
+  font-family: "Manrope", sans-serif;
+}
+
+/* hide scrollbar on the mobile shell while keeping it scrollable */
+::-webkit-scrollbar {
+  width: 0px;
+  background: transparent;
+}
