@@ -1,5 +1,5 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 
 import Onboarding from "./components/Onboarding";
 import HomeScreen from "./components/HomeScreen";
@@ -10,24 +10,42 @@ import DashboardScreen from "./components/DashboardScreen";
 import CelebrationModal from "./components/CelebrationModal";
 import Toast from "./components/Toast";
 import BottomNav from "./components/BottomNav";
+import AuthScreen from "./components/AuthScreen";
 
 import { MILESTONES, MOTIVATION } from "./lib/constants";
 import { loadData, saveData } from "./lib/helpers";
+import { auth } from "./services/firebase";
 
 export default function App() {
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [data, setData] = useState(null);
   const [tab, setTab] = useState("home");
   const [celebration, setCelebration] = useState(null);
   const [toast, setToast] = useState("");
 
   useEffect(() => {
-    const loaded = loadData();
-    if (loaded) setData(loaded);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthLoading(false);
+    });
+
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
-    if (data) saveData(data);
-  }, [data]);
+    if (!user) {
+      setData(null);
+      return;
+    }
+
+    const loaded = loadData();
+    if (loaded) setData(loaded);
+  }, [user]);
+
+  useEffect(() => {
+    if (user && data) saveData(data);
+  }, [user, data]);
 
   const completeOnboarding = (goal) => {
     setData({
@@ -87,6 +105,21 @@ export default function App() {
     return count;
   }, [data]);
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center font-body" style={{ background: "var(--bg)", color: "var(--ink)" }}>
+        <div className="text-center">
+          <div className="text-5xl mb-3">🐷</div>
+          <p className="text-sm">Abrindo seu Cofrinho...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthScreen />;
+  }
+
   if (!data) {
     return <Onboarding onComplete={completeOnboarding} />;
   }
@@ -94,6 +127,16 @@ export default function App() {
   return (
     <div className="font-body min-h-screen" style={{ background: "var(--bg)" }}>
       <div className="max-w-md mx-auto min-h-screen relative" style={{ background: "var(--bg)" }}>
+        <div className="px-5 pt-3 flex justify-end">
+          <button
+            type="button"
+            onClick={() => signOut(auth)}
+            className="text-xs font-semibold px-3 py-2 rounded-xl border"
+            style={{ color: "var(--ink-soft)", borderColor: "var(--line)", background: "var(--surface)" }}
+          >
+            Sair
+          </button>
+        </div>
         {tab === "home" && <HomeScreen data={data} onAddQuick={completeMission} streak={streak} />}
         {tab === "cofrinho" && <CofrinhoScreen data={data} onAdd={addSaving} onDelete={deleteSaving} />}
         {tab === "simulador" && <SimuladorScreen />}
