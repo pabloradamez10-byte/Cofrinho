@@ -1,8 +1,9 @@
 import React from "react";
-import { Calculator, ChevronRight, GraduationCap, LayoutDashboard, ShieldCheck } from "lucide-react";
+import { Calculator, CalendarRange, ChevronRight, GraduationCap, LayoutDashboard, ShieldCheck } from "lucide-react";
 import TopBar from "./TopBar";
 
 const ITEMS = [
+  { id: "planning", title: "Planejamento financeiro", subtitle: "Recorrências, dívidas e previsões", icon: CalendarRange },
   { id: "simulador", title: "Simulador", subtitle: "Teste metas e decisões", icon: Calculator },
   { id: "academia", title: "Academia financeira", subtitle: "Conteúdos e aprendizado", icon: GraduationCap },
   { id: "dashboard", title: "Painel da versão atual", subtitle: "Indicadores e histórico do Cofrinho", icon: LayoutDashboard },
