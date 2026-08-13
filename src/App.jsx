@@ -2,8 +2,11 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 
 import Onboarding from "./components/Onboarding";
-import HomeScreen from "./components/HomeScreen";
-import CofrinhoScreen from "./components/CofrinhoScreen";
+import FinancialHomeScreen from "./components/FinancialHomeScreen";
+import AccountsScreen from "./components/AccountsScreen";
+import ActivitiesScreen from "./components/ActivitiesScreen";
+import GoalsOverviewScreen from "./components/GoalsOverviewScreen";
+import MoreScreen from "./components/MoreScreen";
 import SimuladorScreen from "./components/SimuladorScreen";
 import AcademiaScreen from "./components/AcademiaScreen";
 import DashboardScreen from "./components/DashboardScreen";
@@ -13,6 +16,7 @@ import BottomNav from "./components/BottomNav";
 
 import { MILESTONES, MOTIVATION } from "./lib/constants";
 import { loadData, saveData } from "./lib/helpers";
+import { initializeFinancialData } from "./financial-engine/index.js";
 
 export default function App() {
   const skipNextSave = useRef(false);
@@ -22,6 +26,8 @@ export default function App() {
   const [toast, setToast] = useState("");
   const [saveError, setSaveError] = useState("");
   const [deletedSaving, setDeletedSaving] = useState(null);
+  const [financialData, setFinancialData] = useState(null);
+  const [financialError, setFinancialError] = useState("");
 
   useEffect(() => {
     const loaded = loadData();
@@ -41,6 +47,17 @@ export default function App() {
       setSaveError(result.ok ? "" : "Não foi possível salvar seus dados. Exporte um backup antes de continuar.");
     }
   }, [data]);
+
+  useEffect(() => {
+    if (!data || financialData) return;
+    const result = initializeFinancialData(data);
+    if (result.ok) {
+      setFinancialData(result.data);
+      setFinancialError("");
+    } else {
+      setFinancialError(`O motor financeiro não foi iniciado: ${result.error}`);
+    }
+  }, [data, financialData]);
 
   const completeOnboarding = (goal) => {
     setData({
@@ -116,12 +133,18 @@ export default function App() {
     return <Onboarding onComplete={completeOnboarding} />;
   }
 
+  const financialReady = financialData && !financialError;
+
   return (
     <div className="font-body min-h-screen" style={{ background: "var(--bg)" }}>
       <div className="max-w-md mx-auto min-h-screen relative" style={{ background: "var(--bg)" }}>
-        {tab === "home" && <HomeScreen data={data} onAddQuick={completeMission} streak={streak} />}
+        {financialError && <div role="alert" className="mx-5 mt-4 rounded-2xl p-3 text-sm" style={{ background: "#FDECEC", color: "#9B1C1C" }}>{financialError} Seus dados anteriores continuam preservados.</div>}
+        {tab === "home" && financialReady && <FinancialHomeScreen financialData={financialData} onOpenAccounts={() => setTab("accounts")} onOpenActivities={() => setTab("activities")} />}
+        {tab === "accounts" && financialReady && <AccountsScreen financialData={financialData} />}
+        {tab === "activities" && financialReady && <ActivitiesScreen financialData={financialData} />}
+        {tab === "goals" && financialReady && <GoalsOverviewScreen financialData={financialData} />}
+        {tab === "more" && <MoreScreen onOpen={setTab} />}
         {saveError && <div role="alert" className="mx-5 mt-4 rounded-2xl p-3 text-sm" style={{ background: "#FDECEC", color: "#9B1C1C" }}>{saveError}</div>}
-        {tab === "cofrinho" && <CofrinhoScreen data={data} onAdd={addSaving} onDelete={deleteSaving} onUndo={undoDelete} canUndo={Boolean(deletedSaving)} />}
         {tab === "simulador" && <SimuladorScreen />}
         {tab === "academia" && <AcademiaScreen />}
         {tab === "dashboard" && <DashboardScreen data={data} streak={streak} onRestore={(restored) => { setData(restored); setDeletedSaving(null); }} />}

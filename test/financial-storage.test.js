@@ -34,10 +34,12 @@ test("migra contas padrão, meta e todas as economias sem inflar receitas", () =
     "itau", "banrisul", "dinheiro", "carteiras-digitais",
   ]);
   assert.equal(migrated.accounts.find((account) => account.id === "cofrinho-atual").openingBalanceCents, 20_000);
+  assert.equal(migrated.accounts.find((account) => account.id === "cofrinho-atual").reserved, true);
   assert.equal(migrated.goals[0].targetCents, 1_000_000);
   assert.equal(migrated.goals[0].contributions.length, 2);
   assert.equal(migrated.transactions.length, 0);
   assert.equal(migrated.migration.savingsTotalCents, 20_000);
+  assert.equal(migrated.activities[0].status, "needs_review");
 });
 
 test("inicialização é idempotente e não remigra nem duplica contas", () => {
@@ -79,4 +81,14 @@ test("salvamento mantém versão anterior recuperável", () => {
   assert.ok(storage.getItem(FINANCIAL_BACKUP_KEY));
   assert.deepEqual(restoreFinancialBackup(storage), initialized);
   assert.equal(loadFinancialData(storage).accounts.find((account) => account.id === "itau").openingBalanceCents, 50_000);
+});
+
+test("normaliza uma prévia antiga sem perder compatibilidade", () => {
+  const oldPreview = migrateLegacyData(legacy);
+  oldPreview.activities = undefined;
+  oldPreview.accounts = oldPreview.accounts.map(({ reserved, ...account }) => account);
+  const storage = memoryStorage({ [FINANCIAL_STORAGE_KEY]: JSON.stringify(oldPreview) });
+  const loaded = loadFinancialData(storage);
+  assert.equal(loaded.accounts.find((account) => account.id === "cofrinho-atual").reserved, true);
+  assert.equal(loaded.activities[0].id, "legacy-migration");
 });

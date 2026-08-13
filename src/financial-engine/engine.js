@@ -87,6 +87,10 @@ export function calculateFinancialPosition(accounts, transactions, untilDate) {
     (sum, account) => sum + (account.active === false ? 0 : balances[account.id]),
     0
   );
+  const reservedCents = accounts.reduce(
+    (sum, account) => sum + (account.active === false || !account.reserved ? 0 : balances[account.id]),
+    0
+  );
   const cutoff = new Date(untilDate).getTime();
   if (!Number.isFinite(cutoff)) throw new TypeError("Data limite inválida.");
 
@@ -103,7 +107,8 @@ export function calculateFinancialPosition(accounts, transactions, untilDate) {
   return {
     balances,
     totalBalanceCents,
+    reservedCents,
     committedCents,
-    freeMoneyCents: totalBalanceCents - committedCents,
+    freeMoneyCents: totalBalanceCents - reservedCents - committedCents,
   };
 }

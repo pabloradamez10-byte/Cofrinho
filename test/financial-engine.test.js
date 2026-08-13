@@ -58,6 +58,15 @@ test("separa saldo real, valor comprometido e dinheiro livre", () => {
   assert.equal(position.freeMoneyCents, 465_000);
 });
 
+test("não considera dinheiro reservado como livre", () => {
+  const reservedAccounts = accounts.map((account) => account.id === "dinheiro"
+    ? { ...account, reserved: true }
+    : account);
+  const position = calculateFinancialPosition(reservedAccounts, transactions, "2026-08-31");
+  assert.equal(position.reservedCents, 30_000);
+  assert.equal(position.freeMoneyCents, 460_000);
+});
+
 test("impede transferência para a mesma conta", () => {
   assert.throws(
     () => validateTransaction({ ...transactions[2], destinationAccountId: "itau" }),

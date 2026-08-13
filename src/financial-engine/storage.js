@@ -14,6 +14,29 @@ const DEFAULT_ACCOUNTS = Object.freeze([
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
+function normalizeLoadedData(data) {
+  const normalized = clone(data);
+  normalized.activities ??= [];
+  if (normalized.migration?.source === "cofrinho_data_v2") {
+    normalized.accounts = normalized.accounts.map((account) => account.id === "cofrinho-atual"
+      ? { ...account, reserved: true }
+      : account);
+    if (!normalized.activities.some((activity) => activity.id === "legacy-migration")) {
+      normalized.activities.push({
+        id: "legacy-migration",
+        date: normalized.migration.migratedAt,
+        actor: "system",
+        action: "legacy_data_migrated",
+        title: "Dados anteriores preservados",
+        description: `${normalized.migration.savingsCount} aporte(s) foram preparados para conferência.`,
+        status: normalized.migration.needsReconciliation ? "needs_review" : "completed",
+        reversible: false,
+      });
+    }
+  }
+  return normalized;
+}
+
 function createAccount(account) {
   return {
     ...account,
@@ -71,6 +94,7 @@ export function createEmptyFinancialData() {
     accounts: DEFAULT_ACCOUNTS.map((account) => createAccount({ ...account, createdAt: now })),
     transactions: [],
     goals: [],
+    activities: [],
   };
 }
 
@@ -106,6 +130,7 @@ export function migrateLegacyData(legacyData) {
       name: "Cofrinho atual",
       type: "savings",
       openingBalanceCents: savedTotalCents,
+      reserved: true,
       reconciliationStatus: "needs_review",
       createdAt: migrated.createdAt,
     }));
@@ -128,6 +153,16 @@ export function migrateLegacyData(legacyData) {
     savingsTotalCents: savedTotalCents,
     needsReconciliation: savedTotalCents > 0,
   };
+  migrated.activities = [{
+    id: "legacy-migration",
+    date: migrated.migration.migratedAt,
+    actor: "system",
+    action: "legacy_data_migrated",
+    title: "Dados anteriores preservados",
+    description: `${contributions.length} aporte(s) foram preparados para conferência.`,
+    status: savedTotalCents > 0 ? "needs_review" : "completed",
+    reversible: false,
+  }];
   migrated.updatedAt = migrated.migration.migratedAt;
   return validateFinancialData(migrated);
 }
@@ -148,7 +183,7 @@ export function saveFinancialData(data, storage = localStorage) {
 export function loadFinancialData(storage = localStorage) {
   const raw = storage.getItem(FINANCIAL_STORAGE_KEY);
   if (!raw) return null;
-  return clone(validateFinancialData(JSON.parse(raw)));
+  return clone(validateFinancialData(normalizeLoadedData(JSON.parse(raw))));
 }
 
 export function initializeFinancialData(legacyData, storage = localStorage) {
