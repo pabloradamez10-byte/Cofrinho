@@ -1,5 +1,6 @@
 import {
   ACCOUNT_TYPES,
+  RECONCILIATION_STATUSES,
   TRANSACTION_ORIGINS,
   TRANSACTION_STATUSES,
   TRANSACTION_TYPES,
@@ -16,6 +17,13 @@ export function validateAccount(account) {
   requireText(account.name, "Nome da conta");
   if (!ACCOUNT_TYPES.includes(account.type)) throw new TypeError("Tipo de conta inválido.");
   assertCents(account.openingBalanceCents ?? 0, "Saldo inicial");
+  if (account.reconciliationStatus
+      && !RECONCILIATION_STATUSES.includes(account.reconciliationStatus)) {
+    throw new TypeError("Situação de conciliação inválida.");
+  }
+  if (account.statementBalanceCents != null) {
+    assertCents(account.statementBalanceCents, "Saldo informado");
+  }
   return account;
 }
 
@@ -30,6 +38,9 @@ export function validateTransaction(transaction, accountIds = null) {
   if (!TRANSACTION_TYPES.includes(transaction.type)) throw new TypeError("Tipo de lançamento inválido.");
   if (!TRANSACTION_STATUSES.includes(transaction.status)) throw new TypeError("Status do lançamento inválido.");
   if (!TRANSACTION_ORIGINS.includes(transaction.origin)) throw new TypeError("Origem do lançamento inválida.");
+  if (transaction.dedupeKey != null && typeof transaction.dedupeKey !== "string") {
+    throw new TypeError("Identificador de duplicidade inválido.");
+  }
 
   if (transaction.type === "income" && !transaction.destinationAccountId) {
     throw new TypeError("Uma entrada precisa de uma conta de destino.");
