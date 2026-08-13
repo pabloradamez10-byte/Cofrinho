@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import Onboarding from "./components/Onboarding";
 import FinancialHomeScreen from "./components/FinancialHomeScreen";
 import AccountsScreen from "./components/AccountsScreen";
+import AccountDetailScreen from "./components/AccountDetailScreen";
 import ActivitiesScreen from "./components/ActivitiesScreen";
 import GoalsOverviewScreen from "./components/GoalsOverviewScreen";
 import MoreScreen from "./components/MoreScreen";
@@ -28,6 +29,7 @@ export default function App() {
   const [deletedSaving, setDeletedSaving] = useState(null);
   const [financialData, setFinancialData] = useState(null);
   const [financialError, setFinancialError] = useState("");
+  const [selectedAccountId, setSelectedAccountId] = useState(null);
 
   useEffect(() => {
     const loaded = loadData();
@@ -140,7 +142,9 @@ export default function App() {
       <div className="max-w-md mx-auto min-h-screen relative" style={{ background: "var(--bg)" }}>
         {financialError && <div role="alert" className="mx-5 mt-4 rounded-2xl p-3 text-sm" style={{ background: "#FDECEC", color: "#9B1C1C" }}>{financialError} Seus dados anteriores continuam preservados.</div>}
         {tab === "home" && financialReady && <FinancialHomeScreen financialData={financialData} onOpenAccounts={() => setTab("accounts")} onOpenActivities={() => setTab("activities")} />}
-        {tab === "accounts" && financialReady && <AccountsScreen financialData={financialData} />}
+        {tab === "accounts" && financialReady && (selectedAccountId
+          ? <AccountDetailScreen accountId={selectedAccountId} financialData={financialData} onBack={() => setSelectedAccountId(null)} />
+          : <AccountsScreen financialData={financialData} onSelectAccount={setSelectedAccountId} />)}
         {tab === "activities" && financialReady && <ActivitiesScreen financialData={financialData} />}
         {tab === "goals" && financialReady && <GoalsOverviewScreen financialData={financialData} />}
         {tab === "more" && <MoreScreen onOpen={setTab} />}
@@ -150,7 +154,7 @@ export default function App() {
         {tab === "dashboard" && <DashboardScreen data={data} streak={streak} onRestore={(restored) => { setData(restored); setDeletedSaving(null); }} />}
         <div style={{ height: 84 }} />
       </div>
-      <BottomNav tab={tab} setTab={setTab} />
+      <BottomNav tab={tab} setTab={(nextTab) => { if (nextTab !== "accounts") setSelectedAccountId(null); setTab(nextTab); }} />
       <Toast text={toast} onDone={() => setToast("")} />
       <CelebrationModal milestone={celebration} onClose={() => setCelebration(null)} />
     </div>
