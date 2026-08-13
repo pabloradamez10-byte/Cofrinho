@@ -12,6 +12,7 @@ import GoalsOverviewScreen from "./components/GoalsOverviewScreen";
 import MoreScreen from "./components/MoreScreen";
 import PlanningScreen from "./components/PlanningScreen";
 import ImportScreen from "./components/ImportScreen";
+import AtlasRequestsScreen from "./components/AtlasRequestsScreen";
 import SimuladorScreen from "./components/SimuladorScreen";
 import AcademiaScreen from "./components/AcademiaScreen";
 import DashboardScreen from "./components/DashboardScreen";
@@ -21,7 +22,7 @@ import BottomNav from "./components/BottomNav";
 
 import { MILESTONES, MOTIVATION } from "./lib/constants";
 import { loadData, saveData } from "./lib/helpers";
-import { commitImportPreview, initializeFinancialData, saveFinancialData } from "./financial-engine/index.js";
+import { commitImportPreview, decideAtlasRequest, getLocalApiInfo, handleAtlasRequest, initializeFinancialData, pairAtlasClient, persistAtlasRequests, saveFinancialData } from "./financial-engine/index.js";
 
 export default function App() {
   const skipNextSave = useRef(false);
@@ -35,6 +36,7 @@ export default function App() {
   const [financialError, setFinancialError] = useState("");
   const [selectedAccountId, setSelectedAccountId] = useState(null);
   const [selectedCardId, setSelectedCardId] = useState(null);
+  const financialDataRef = useRef(null);
 
   useEffect(() => {
     const loaded = loadData();
@@ -65,6 +67,19 @@ export default function App() {
       setFinancialError(`O motor financeiro não foi iniciado: ${result.error}`);
     }
   }, [data, financialData]);
+
+  useEffect(() => { financialDataRef.current = financialData; }, [financialData]);
+
+  useEffect(() => {
+    if (!financialData) return undefined;
+    const bridge = Object.freeze({
+      info: () => getLocalApiInfo(),
+      pair: ({ code, client }) => pairAtlasClient(code, client),
+      request: ({ sessionToken, message }) => handleAtlasRequest(sessionToken, message, financialDataRef.current),
+    });
+    Object.defineProperty(window, "CofrinhoLocalAPI", { value: bridge, configurable: true, writable: false });
+    return () => { delete window.CofrinhoLocalAPI; };
+  }, [Boolean(financialData)]);
 
   const completeOnboarding = (goal) => {
     setData({
@@ -154,6 +169,18 @@ export default function App() {
     }
   };
 
+  const decideOnAtlasRequest = (requestId, decision) => {
+    try {
+      const decided = decideAtlasRequest(financialData, requestId, decision);
+      const saved = saveFinancialData(decided.data);
+      if (!saved.ok) return { ok: false, error: saved.error };
+      persistAtlasRequests(decided.requests);
+      setFinancialData(saved.data);
+      window.dispatchEvent(new CustomEvent("cofrinho:atlas-requests-changed"));
+      return { ok: true, request: decided.request };
+    } catch (error) { return { ok: false, error: error.message }; }
+  };
+
   return (
     <div className="font-body min-h-screen" style={{ background: "var(--bg)" }}>
       <div className="max-w-md mx-auto min-h-screen relative" style={{ background: "var(--bg)" }}>
@@ -170,6 +197,7 @@ export default function App() {
         {tab === "more" && <MoreScreen onOpen={setTab} />}
         {tab === "planning" && financialReady && <PlanningScreen financialData={financialData} onBack={() => setTab("more")} />}
         {tab === "import" && financialReady && <ImportScreen financialData={financialData} onBack={() => setTab("more")} onConfirm={confirmStatementImport} />}
+        {tab === "atlas-requests" && financialReady && <AtlasRequestsScreen onBack={() => setTab("more")} onDecide={decideOnAtlasRequest} />}
         {saveError && <div role="alert" className="mx-5 mt-4 rounded-2xl p-3 text-sm" style={{ background: "#FDECEC", color: "#9B1C1C" }}>{saveError}</div>}
         {tab === "simulador" && financialReady && <SimuladorScreen financialData={financialData} />}
         {tab === "academia" && <AcademiaScreen />}
