@@ -1,0 +1,72 @@
+name: Build Cofrinho Android APK
+
+on:
+  push:
+    branches: ["feat/android-atlas-bridge"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run financial tests
+        run: npm test
+
+      - name: Build bundled web app
+        run: npm run build
+
+      - name: Generate and sync Android project
+        run: |
+          npx cap add android
+          npx cap sync android
+
+      - name: Build installable debug APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Verify APK package and contents
+        run: |
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          unzip -t "$APK" >/dev/null
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          test -x "$AAPT"
+          "$AAPT" dump badging "$APK" | grep -F "package: name='com.pablo.cofrinho'"
+          unzip -l "$APK" | grep -F "assets/public/index.html"
+          mkdir -p dist-android
+          cp "$APK" "dist-android/Cofrinho-Android-1.1.0-teste.apk"
+
+      - name: Publish test APK in GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="cofrinho-android-1.1.0-teste"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --target "$GITHUB_SHA" --prerelease               --title "Cofrinho Android 1.1.0 — teste"               --notes "Primeiro APK Android do Cofrinho. Build de teste para validar instalação, dados locais e interface antes da ponte com o Atlas Pocket."
+          fi
+          gh release upload "$TAG" dist-android/Cofrinho-Android-1.1.0-teste.apk --clobber
