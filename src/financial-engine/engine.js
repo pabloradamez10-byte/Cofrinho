@@ -198,3 +198,36 @@ export function reverseTransaction(transaction, reversedAt, reversalId) {
   validateTransaction(reversal);
   return { original, reversal };
 }
+
+export function getAccountTransactions(accountId, transactions) {
+  if (typeof accountId !== "string" || !accountId.trim()) {
+    throw new TypeError("Identificador da conta é obrigatório.");
+  }
+  return [...transactions]
+    .filter((transaction) => transaction.sourceAccountId === accountId
+      || transaction.destinationAccountId === accountId)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+}
+
+export function transactionImpactForAccount(transaction, accountId) {
+  validateTransaction(transaction);
+  if (!["cleared", "confirmed", "corrected"].includes(transaction.status)
+      || transaction.reversesTransactionId) return 0;
+  if (transaction.type === "income" && transaction.destinationAccountId === accountId) {
+    return transaction.amountCents;
+  }
+  if (transaction.type === "expense" && transaction.sourceAccountId === accountId) {
+    return -transaction.amountCents;
+  }
+  if (transaction.type === "transfer") {
+    if (transaction.sourceAccountId === accountId) return -transaction.amountCents;
+    if (transaction.destinationAccountId === accountId) return transaction.amountCents;
+  }
+  return 0;
+}
+
+export function getTransactionsAwaitingConfirmation(transactions) {
+  return [...transactions]
+    .filter((transaction) => ["detected", "awaiting_confirmation"].includes(transaction.status))
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+}
