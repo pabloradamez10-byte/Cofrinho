@@ -3,6 +3,7 @@ export * from "./cards.js";
 export * from "./decisions.js";
 export * from "./engine.js";
 export * from "./imports.js";
+export * from "./local-api.js";
 export * from "./money.js";
 export * from "./planning.js";
 export * from "./storage.js";
