@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { findPotentialTransfers, parseCsvStatement, parseOfxStatement, prepareImportPreview } from "../src/financial-engine/index.js";
+import { commitImportPreview, createEmptyFinancialData, findPotentialTransfers, parseCsvStatement, parseOfxStatement, parsePdfStatementText, prepareImportPreview } from "../src/financial-engine/index.js";
 
 const categories = [{ id: "alimentacao", name: "Alimentação" }, { id: "salario", name: "Salário" }, { id: "outros", name: "Outros" }];
 
@@ -36,4 +36,33 @@ test("sinaliza possível transferência entre contas sem convertê-la automatica
   ];
   assert.equal(findPotentialTransfers(candidates).length, 1);
   assert.equal(candidates[0].transaction.type, "expense");
+});
+
+test("reconhece linhas textuais de PDF do Itaú e Banrisul sem adivinhar linha ambígua", () => {
+  const parsed = parsePdfStatementText("01/08/2026 PIX ENVIADO JOAO 150,00 D\n02/08/2026 SALARIO EMPRESA 4.000,00 C\n03/08/2026 MOVIMENTO DESCONHECIDO 20,00", "itau");
+  assert.equal(parsed.rows.length, 2);
+  assert.equal(parsed.rows[0].signedAmountCents, -15_000);
+  assert.equal(parsed.rows[1].signedAmountCents, 400_000);
+  assert.equal(parsed.rejected.length, 1);
+});
+
+test("confirma lote de forma auditável sem reaproveitar duplicidades", () => {
+  const data = createEmptyFinancialData();
+  const rows = parseCsvStatement("data;descricao;valor;id\n01/08/2026;Mercado;-50,00;one\n05/08/2026;Salario;1000,00;two");
+  const preview = prepareImportPreview(rows, { accountId: "itau", existingTransactions: [], categories: data.categories, fileName: "itau.csv" });
+  const result = commitImportPreview(data, preview.candidates, { fileName: "itau.csv", accountId: "itau", source: "csv" }, "2026-08-13T12:00:00.000Z");
+  assert.equal(result.report.inserted, 2);
+  assert.equal(result.data.transactions.length, 2);
+  assert.equal(result.data.activities[0].action, "statement_import_confirmed");
+  assert.deepEqual(result.data.activities[0].transactionIds, result.data.transactions.map((item) => item.id));
+  assert.equal(data.transactions.length, 0);
+});
+
+test("cancela o lote inteiro quando uma correção deixa valor inválido", () => {
+  const data = createEmptyFinancialData();
+  const rows = parseCsvStatement("data;descricao;valor\n01/08/2026;Mercado;-50,00");
+  const preview = prepareImportPreview(rows, { accountId: "itau", existingTransactions: [], categories: data.categories });
+  preview.candidates[0].transaction.amountCents = 0;
+  assert.throws(() => commitImportPreview(data, preview.candidates, {}, "2026-08-13T12:00:00.000Z"), /maior que zero/);
+  assert.equal(data.transactions.length, 0);
 });
