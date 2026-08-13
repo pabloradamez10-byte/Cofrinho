@@ -1,12 +1,12 @@
 import React, { useMemo } from "react";
-import { Banknote, ChevronRight, Landmark, PiggyBank, Smartphone, WalletCards } from "lucide-react";
+import { Banknote, ChevronRight, CreditCard, Landmark, PiggyBank, Smartphone, WalletCards } from "lucide-react";
 import TopBar from "./TopBar";
 import { calculateAccountBalances, fromCents } from "../financial-engine/index.js";
 import { brl } from "../lib/helpers";
 
 const ICONS = { checking: Landmark, cash: Banknote, digital_wallet: Smartphone, savings: PiggyBank, credit_card: WalletCards };
 
-export default function AccountsScreen({ financialData, onSelectAccount }) {
+export default function AccountsScreen({ financialData, onSelectAccount, onOpenCards }) {
   const balances = useMemo(
     () => calculateAccountBalances(financialData.accounts, financialData.transactions),
     [financialData]
@@ -30,6 +30,11 @@ export default function AccountsScreen({ financialData, onSelectAccount }) {
             </button>
           );
         })}
+        <button type="button" onClick={onOpenCards} className="w-full rounded-3xl p-4 flex items-center gap-3 text-left" style={{ background: "var(--primary-lt)", border: "1px solid var(--line)" }}>
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: "var(--surface)" }}><CreditCard size={21} color="var(--primary)" /></div>
+          <div className="flex-1"><p className="font-semibold text-sm">Cartões e faturas</p><p className="text-xs mt-0.5" style={{ color: "var(--ink-soft)" }}>{financialData.creditCards.length === 0 ? "Nenhum cartão informado" : `${financialData.creditCards.length} cartão(ões)`}</p></div>
+          <ChevronRight size={19} color="var(--ink-soft)" aria-hidden="true" />
+        </button>
       </div>
     </div>
   );
