@@ -1,10 +1,11 @@
 import React from "react";
-import { Calculator, CalendarRange, ChevronRight, FileInput, GraduationCap, LayoutDashboard, ShieldCheck } from "lucide-react";
+import { Bot, Calculator, CalendarRange, ChevronRight, FileInput, GraduationCap, LayoutDashboard, ShieldCheck } from "lucide-react";
 import TopBar from "./TopBar";
 
 const ITEMS = [
   { id: "planning", title: "Planejamento financeiro", subtitle: "Recorrências, dívidas e previsões", icon: CalendarRange },
   { id: "import", title: "Importar extrato", subtitle: "Prévia segura de CSV e OFX", icon: FileInput },
+  { id: "atlas-requests", title: "Pedidos do Atlas", subtitle: "Pareamento, confirmações e auditoria", icon: Bot },
   { id: "simulador", title: "Simulador", subtitle: "Teste metas e decisões", icon: Calculator },
   { id: "academia", title: "Academia financeira", subtitle: "Conteúdos e aprendizado", icon: GraduationCap },
   { id: "dashboard", title: "Painel da versão atual", subtitle: "Indicadores e histórico do Cofrinho", icon: LayoutDashboard },
