@@ -6,9 +6,12 @@ import {
   confirmTransaction,
   correctTransaction,
   findDuplicate,
+  getAccountTransactions,
+  getTransactionsAwaitingConfirmation,
   reconcileAccount,
   reverseTransaction,
   summarizePeriod,
+  transactionImpactForAccount,
   toCents,
   validateTransaction,
 } from "../src/financial-engine/index.js";
@@ -125,4 +128,30 @@ test("concilia conta sem esconder diferenças", () => {
   const different = reconcileAccount(accounts[0], 100_000, 105_000, "2026-08-13T15:00:00.000Z");
   assert.equal(different.reconciliationStatus, "difference_found");
   assert.equal(different.reconciliationDifferenceCents, 5_000);
+});
+
+test("lista somente as movimentações da conta em ordem recente", () => {
+  const result = getAccountTransactions("itau", [
+    transactions[1],
+    { ...transactions[0], date: "2026-08-14T12:00:00.000Z" },
+    { ...transactions[1], id: "fora", sourceAccountId: "outra" },
+  ]);
+  assert.deepEqual(result.map((item) => item.id), ["salario", "mercado"]);
+});
+
+test("calcula o impacto visual de cada movimentação na conta", () => {
+  assert.equal(transactionImpactForAccount(transactions[0], "itau"), 400_000);
+  assert.equal(transactionImpactForAccount(transactions[1], "itau"), -30_000);
+  assert.equal(transactionImpactForAccount(transactions[2], "itau"), -10_000);
+  assert.equal(transactionImpactForAccount(transactions[2], "dinheiro"), 10_000);
+  assert.equal(transactionImpactForAccount({ ...transactions[1], status: "detected" }, "itau"), 0);
+});
+
+test("separa o que aguarda confirmação sem afetar os registros confirmados", () => {
+  const awaiting = getTransactionsAwaitingConfirmation([
+    ...transactions,
+    { ...transactions[1], id: "detectada", status: "detected" },
+    { ...transactions[1], id: "confirmar", status: "awaiting_confirmation", date: "2026-08-14" },
+  ]);
+  assert.deepEqual(awaiting.map((item) => item.id), ["confirmar", "detectada"]);
 });
