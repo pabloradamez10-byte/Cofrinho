@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Banknote, ChevronRight, Landmark, PiggyBank, Smartphone, WalletCards } from "lucide-react";
+import { Banknote, Landmark, PiggyBank, Smartphone, WalletCards } from "lucide-react";
 import TopBar from "./TopBar";
 import { calculateAccountBalances, fromCents } from "../financial-engine/index.js";
 import { brl } from "../lib/helpers";
@@ -26,7 +26,6 @@ export default function AccountsScreen({ financialData }) {
                 <p className="font-display text-lg font-semibold mt-0.5">{brl(fromCents(balances[account.id]))}</p>
                 {account.reconciliationStatus === "needs_review" && <p className="text-[11px]" style={{ color: "var(--accent)" }}>Saldo aguardando conferência</p>}
               </div>
-              <ChevronRight size={18} color="var(--ink-soft)" />
             </div>
           );
         })}
