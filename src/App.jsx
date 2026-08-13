@@ -5,6 +5,8 @@ import Onboarding from "./components/Onboarding";
 import FinancialHomeScreen from "./components/FinancialHomeScreen";
 import AccountsScreen from "./components/AccountsScreen";
 import AccountDetailScreen from "./components/AccountDetailScreen";
+import CardsScreen from "./components/CardsScreen";
+import CardDetailScreen from "./components/CardDetailScreen";
 import ActivitiesScreen from "./components/ActivitiesScreen";
 import GoalsOverviewScreen from "./components/GoalsOverviewScreen";
 import MoreScreen from "./components/MoreScreen";
@@ -30,6 +32,7 @@ export default function App() {
   const [financialData, setFinancialData] = useState(null);
   const [financialError, setFinancialError] = useState("");
   const [selectedAccountId, setSelectedAccountId] = useState(null);
+  const [selectedCardId, setSelectedCardId] = useState(null);
 
   useEffect(() => {
     const loaded = loadData();
@@ -144,7 +147,10 @@ export default function App() {
         {tab === "home" && financialReady && <FinancialHomeScreen financialData={financialData} onOpenAccounts={() => setTab("accounts")} onOpenActivities={() => setTab("activities")} />}
         {tab === "accounts" && financialReady && (selectedAccountId
           ? <AccountDetailScreen accountId={selectedAccountId} financialData={financialData} onBack={() => setSelectedAccountId(null)} />
-          : <AccountsScreen financialData={financialData} onSelectAccount={setSelectedAccountId} />)}
+          : <AccountsScreen financialData={financialData} onSelectAccount={setSelectedAccountId} onOpenCards={() => setTab("cards")} />)}
+        {tab === "cards" && financialReady && (selectedCardId
+          ? <CardDetailScreen cardId={selectedCardId} financialData={financialData} onBack={() => setSelectedCardId(null)} />
+          : <CardsScreen financialData={financialData} onBack={() => setTab("accounts")} onSelectCard={setSelectedCardId} />)}
         {tab === "activities" && financialReady && <ActivitiesScreen financialData={financialData} />}
         {tab === "goals" && financialReady && <GoalsOverviewScreen financialData={financialData} />}
         {tab === "more" && <MoreScreen onOpen={setTab} />}
@@ -154,7 +160,7 @@ export default function App() {
         {tab === "dashboard" && <DashboardScreen data={data} streak={streak} onRestore={(restored) => { setData(restored); setDeletedSaving(null); }} />}
         <div style={{ height: 84 }} />
       </div>
-      <BottomNav tab={tab} setTab={(nextTab) => { if (nextTab !== "accounts") setSelectedAccountId(null); setTab(nextTab); }} />
+      <BottomNav tab={tab === "cards" ? "accounts" : tab} setTab={(nextTab) => { if (nextTab !== "accounts") setSelectedAccountId(null); setSelectedCardId(null); setTab(nextTab); }} />
       <Toast text={toast} onDone={() => setToast("")} />
       <CelebrationModal milestone={celebration} onClose={() => setCelebration(null)} />
     </div>
