@@ -11,6 +11,7 @@ import ActivitiesScreen from "./components/ActivitiesScreen";
 import GoalsOverviewScreen from "./components/GoalsOverviewScreen";
 import MoreScreen from "./components/MoreScreen";
 import PlanningScreen from "./components/PlanningScreen";
+import ImportScreen from "./components/ImportScreen";
 import SimuladorScreen from "./components/SimuladorScreen";
 import AcademiaScreen from "./components/AcademiaScreen";
 import DashboardScreen from "./components/DashboardScreen";
@@ -156,6 +157,7 @@ export default function App() {
         {tab === "goals" && financialReady && <GoalsOverviewScreen financialData={financialData} />}
         {tab === "more" && <MoreScreen onOpen={setTab} />}
         {tab === "planning" && financialReady && <PlanningScreen financialData={financialData} onBack={() => setTab("more")} />}
+        {tab === "import" && financialReady && <ImportScreen financialData={financialData} onBack={() => setTab("more")} />}
         {saveError && <div role="alert" className="mx-5 mt-4 rounded-2xl p-3 text-sm" style={{ background: "#FDECEC", color: "#9B1C1C" }}>{saveError}</div>}
         {tab === "simulador" && financialReady && <SimuladorScreen financialData={financialData} />}
         {tab === "academia" && <AcademiaScreen />}
