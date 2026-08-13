@@ -1,13 +1,23 @@
 import React from "react";
 import { Bot, CheckCircle2, Clock3, ShieldCheck } from "lucide-react";
 import TopBar from "./TopBar";
+import { fromCents, getTransactionsAwaitingConfirmation } from "../financial-engine/index.js";
+import { brl } from "../lib/helpers";
 
 export default function ActivitiesScreen({ financialData }) {
   const activities = financialData.activities ?? [];
+  const awaiting = getTransactionsAwaitingConfirmation(financialData.transactions);
   return (
     <div className="pb-4">
       <TopBar title="Atividades" subtitle="Nada que o Atlas fizer ficará escondido" />
       <div className="px-5 space-y-3">
+        {awaiting.length > 0 ? (
+          <section className="space-y-2" aria-labelledby="awaiting-title">
+            <div><h2 id="awaiting-title" className="font-display text-xl font-semibold">Aguardando você</h2><p className="text-xs" style={{ color: "var(--ink-soft)" }}>Ainda não alteram seus saldos</p></div>
+            {awaiting.map((transaction) => <article key={transaction.id} className="rounded-3xl p-4 flex gap-3" style={{ background: "var(--accent-lt)" }}><Clock3 size={20} color="var(--accent)" /><div className="flex-1"><p className="font-semibold text-sm">{transaction.description}</p><p className="text-xs mt-1" style={{ color: "var(--ink-soft)" }}>{brl(fromCents(transaction.amountCents))} · aguardando confirmação no Atlas</p></div></article>)}
+          </section>
+        ) : null}
+        <div className="pt-1"><h2 className="font-display text-xl font-semibold">Histórico auditável</h2><p className="text-xs" style={{ color: "var(--ink-soft)" }}>Alterações realizadas no Cofrinho</p></div>
         {activities.length === 0 ? (
           <div className="rounded-3xl p-6 text-center" style={{ background: "var(--surface)", border: "1px solid var(--line)" }}>
             <Bot size={30} color="var(--primary)" className="mx-auto" />
