@@ -1,5 +1,10 @@
 import { findDuplicate } from "./engine.js";
+import { validateFinancialData } from "./storage.js";
 import { validateTransaction } from "./validation.js";
+
+const PDFJS_VERSION = "5.4.296";
+const PDFJS_MODULE = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.min.mjs`;
+const PDFJS_WORKER = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.mjs`;
 
 const HEADER_ALIASES = {
   date: ["data", "date", "dtposted", "data lancamento"],
@@ -100,9 +105,81 @@ export function parseOfxStatement(content) {
 
 export function detectStatementFormat(fileName, content) {
   const name = normalize(fileName);
+  if (name.endsWith(".pdf")) return "pdf";
   if (name.endsWith(".ofx") || /<OFX>|<STMTTRN>/i.test(content)) return "ofx";
   if (name.endsWith(".csv")) return "csv";
   throw new TypeError("Formato não suportado. Use CSV ou OFX nesta primeira versão.");
+}
+
+function signedPdfAmount(value, marker, description) {
+  const absolute = Math.abs(parseAmount(value));
+  const flag = normalize(marker);
+  const text = normalize(description);
+  if (String(value).trim().startsWith("-") || flag === "d" || flag === "debito") return -absolute;
+  if (String(value).trim().startsWith("+") || flag === "c" || flag === "credito") return absolute;
+  const incomeTerms = ["salario", "peculio", "credito", "recebido", "deposito", "estorno", "rendimento"];
+  const expenseTerms = ["debito", "pagamento", "compra", "pix enviado", "saque", "tarifa", "boleto"];
+  if (incomeTerms.some((term) => text.includes(term))) return absolute;
+  if (expenseTerms.some((term) => text.includes(term))) return -absolute;
+  throw new TypeError("Débito ou crédito não identificado");
+}
+
+export function parsePdfStatementText(content, bank = "generic") {
+  const rows = [];
+  const rejected = [];
+  const lines = String(content).split(/\r?\n/).map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean);
+  const pattern = /^(\d{2}[/-]\d{2}(?:[/-]\d{2,4})?)\s+(.+?)\s+([+-]?(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})\s*([CD]|CR[EÉ]DITO|D[EÉ]BITO)?$/i;
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = lines[index].match(pattern);
+    if (!match) continue;
+    try {
+      let dateValue = match[1];
+      if (/^\d{2}[/-]\d{2}$/.test(dateValue)) dateValue += `/${new Date().getFullYear()}`;
+      if (/^\d{2}[/-]\d{2}[/-]\d{2}$/.test(dateValue)) dateValue = `${dateValue.slice(0, 6)}20${dateValue.slice(6)}`;
+      rows.push({ row: index + 1, date: parseDate(dateValue), description: match[2].trim(), signedAmountCents: signedPdfAmount(match[3], match[4], match[2]), externalId: null, bank });
+    } catch (error) {
+      rejected.push({ row: index + 1, content: lines[index], reason: error.message });
+    }
+  }
+  if (rows.length === 0 && rejected.length === 0) throw new TypeError("O PDF não possui linhas bancárias reconhecíveis. Ele pode ser uma imagem digitalizada.");
+  return { rows, rejected };
+}
+
+function groupPdfItems(items) {
+  const lines = new Map();
+  for (const item of items) {
+    const y = Math.round(item.transform?.[5] ?? 0);
+    const list = lines.get(y) ?? [];
+    list.push({ x: item.transform?.[4] ?? 0, text: item.str });
+    lines.set(y, list);
+  }
+  return [...lines.entries()].sort((a, b) => b[0] - a[0]).map(([, itemsOnLine]) => itemsOnLine.sort((a, b) => a.x - b.x).map((item) => item.text).join(" ").replace(/\s+/g, " ").trim()).filter(Boolean).join("\n");
+}
+
+export async function extractPdfText(file) {
+  if (!file || typeof file.arrayBuffer !== "function") throw new TypeError("Arquivo PDF inválido.");
+  let pdfjs;
+  try {
+    pdfjs = await import(/* @vite-ignore */ PDFJS_MODULE);
+  } catch {
+    throw new Error("Não foi possível carregar o leitor de PDF. Verifique sua internet e tente novamente.");
+  }
+  pdfjs.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+  let document;
+  try {
+    document = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  } catch (error) {
+    if (/password/i.test(error?.name) || /password/i.test(error?.message)) throw new Error("Este PDF possui senha. Exporte uma cópia sem proteção para importar; nenhuma senha será armazenada.");
+    throw new Error("Não foi possível abrir o PDF.");
+  }
+  const pages = [];
+  for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+    const page = await document.getPage(pageNumber);
+    pages.push(groupPdfItems((await page.getTextContent()).items));
+  }
+  const text = pages.join("\n");
+  if (!text.trim()) throw new Error("Este PDF parece ser uma imagem. A leitura por OCR será adicionada futuramente.");
+  return text;
 }
 
 export function suggestCategory(description, categories = []) {
@@ -158,7 +235,18 @@ export function prepareImportPreview(rows, options) {
 
 export function parseStatementFile(fileName, content) {
   const format = detectStatementFormat(fileName, content);
-  return { format, rows: format === "ofx" ? parseOfxStatement(content) : parseCsvStatement(content) };
+  if (format === "pdf") {
+    const parsed = parsePdfStatementText(content, optionsBank(fileName, content));
+    return { format, ...parsed };
+  }
+  return { format, rows: format === "ofx" ? parseOfxStatement(content) : parseCsvStatement(content), rejected: [] };
+}
+
+function optionsBank(fileName, content) {
+  const text = normalize(`${fileName} ${content.slice(0, 500)}`);
+  if (text.includes("itau")) return "itau";
+  if (text.includes("banrisul")) return "banrisul";
+  return "generic";
 }
 
 export function findPotentialTransfers(candidates) {
@@ -170,4 +258,37 @@ export function findPotentialTransfers(candidates) {
     const days = Math.abs(new Date(a.date) - new Date(b.date)) / 86_400_000;
     return differentAccounts && opposite && days <= 2 ? [{ firstId: a.id, secondId: b.id, confidence: "possible" }] : [];
   }));
+}
+
+export function commitImportPreview(data, candidates, metadata, confirmedAt = new Date().toISOString()) {
+  const selected = candidates.filter((item) => item.selected !== false && !item.duplicate);
+  const accepted = [];
+  const ignored = [];
+  for (const item of selected) {
+    const transaction = { ...item.transaction, status: "confirmed", confirmedAt, createdAt: item.transaction.createdAt ?? confirmedAt, updatedAt: confirmedAt };
+    validateTransaction(transaction, new Set(data.accounts.map((account) => account.id)));
+    const duplicate = findDuplicate(transaction, [...data.transactions, ...accepted]);
+    if (duplicate.duplicate) ignored.push({ transaction, reason: duplicate.reason });
+    else accepted.push(transaction);
+  }
+  if (accepted.length === 0) throw new TypeError("Nenhum lançamento novo foi selecionado para confirmar.");
+  const batchId = `import-batch-${stableHash(`${metadata?.fileName}|${confirmedAt}`)}`;
+  const activity = {
+    id: batchId,
+    date: confirmedAt,
+    actor: "user",
+    action: "statement_import_confirmed",
+    title: "Extrato importado",
+    description: `${accepted.length} lançamento(s) confirmado(s); ${ignored.length} duplicidade(s) ignorada(s).`,
+    status: "completed",
+    reversible: true,
+    source: metadata?.source ?? "statement",
+    fileName: metadata?.fileName ?? null,
+    accountId: metadata?.accountId ?? null,
+    transactionIds: accepted.map((transaction) => transaction.id),
+    result: { inserted: accepted.length, ignored: ignored.length, corrected: candidates.filter((item) => item.corrected).length },
+  };
+  const next = { ...data, transactions: [...data.transactions, ...accepted], activities: [activity, ...data.activities] };
+  validateFinancialData(next);
+  return { data: next, activity, report: { inserted: accepted.length, ignored: ignored.length, corrected: activity.result.corrected } };
 }
