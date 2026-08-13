@@ -3,7 +3,11 @@ import assert from "node:assert/strict";
 import {
   calculateAccountBalances,
   calculateFinancialPosition,
+  confirmTransaction,
+  correctTransaction,
   findDuplicate,
+  reconcileAccount,
+  reverseTransaction,
   summarizePeriod,
   toCents,
   validateTransaction,
@@ -79,4 +83,46 @@ test("detecta duplicidade por identificador externo ou conteúdo", () => {
   const exact = { ...transactions[1], dedupeKey: "ofx:123" };
   assert.equal(findDuplicate(imported, [exact]).reason, "dedupe-key");
   assert.equal(findDuplicate({ ...transactions[1], id: "outro" }, transactions).reason, "fingerprint");
+});
+
+test("mantém lançamento detectado fora do saldo até a confirmação", () => {
+  const detected = {
+    ...transactions[1], id: "notificacao-1", status: "detected", origin: "notification",
+  };
+  assert.equal(calculateAccountBalances(accounts, [detected]).itau, 100_000);
+  const confirmed = confirmTransaction(detected, "2026-08-13T13:00:00.000Z");
+  assert.equal(confirmed.status, "confirmed");
+  assert.equal(calculateAccountBalances(accounts, [confirmed]).itau, 70_000);
+});
+
+test("corrige lançamento confirmado e recalcula pelo valor corrigido", () => {
+  const corrected = correctTransaction(
+    { ...transactions[1], status: "confirmed" },
+    { amountCents: 25_000, categoryId: "alimentacao" },
+    "2026-08-13T14:00:00.000Z"
+  );
+  assert.equal(corrected.status, "corrected");
+  assert.equal(corrected.id, "mercado");
+  assert.equal(calculateAccountBalances(accounts, [corrected]).itau, 75_000);
+});
+
+test("desfaz sem apagar o original e neutraliza seu efeito financeiro", () => {
+  const confirmed = { ...transactions[1], status: "confirmed" };
+  const { original, reversal } = reverseTransaction(
+    confirmed, "2026-08-14T10:00:00.000Z", "reversao-mercado"
+  );
+  assert.equal(original.status, "reversed");
+  assert.equal(reversal.reversesTransactionId, original.id);
+  assert.equal(calculateAccountBalances(accounts, [original, reversal]).itau, 100_000);
+  const summary = summarizePeriod([original, reversal], "2026-08-01", "2026-08-31T23:59:59.999Z");
+  assert.deepEqual(summary, { incomeCents: 0, expenseCents: 0, netCents: 0 });
+});
+
+test("concilia conta sem esconder diferenças", () => {
+  const exact = reconcileAccount(accounts[0], 100_000, 100_000, "2026-08-13T15:00:00.000Z");
+  assert.equal(exact.reconciliationStatus, "reconciled");
+  assert.equal(exact.reconciliationDifferenceCents, 0);
+  const different = reconcileAccount(accounts[0], 100_000, 105_000, "2026-08-13T15:00:00.000Z");
+  assert.equal(different.reconciliationStatus, "difference_found");
+  assert.equal(different.reconciliationDifferenceCents, 5_000);
 });
