@@ -1,6 +1,6 @@
 import { validateAccount, validateTransaction } from "./validation.js";
 
-const POSTED_STATUSES = new Set(["cleared"]);
+const POSTED_STATUSES = new Set(["cleared", "confirmed", "corrected"]);
 const COMMITTED_STATUSES = new Set(["pending", "scheduled"]);
 
 function normalizeDescription(value) {
@@ -45,6 +45,7 @@ export function calculateAccountBalances(accounts, transactions, options = {}) {
 
   for (const transaction of transactions) {
     validateTransaction(transaction, accountIds);
+    if (transaction.reversesTransactionId) continue;
     const shouldPost = POSTED_STATUSES.has(transaction.status)
       || (includePending && COMMITTED_STATUSES.has(transaction.status));
     if (!shouldPost || transaction.status === "cancelled") continue;
@@ -69,6 +70,7 @@ export function summarizePeriod(transactions, startDate, endDate) {
   const summary = transactions.reduce(
     (summary, transaction) => {
       validateTransaction(transaction);
+      if (transaction.reversesTransactionId) return summary;
       const time = new Date(transaction.date).getTime();
       if (!POSTED_STATUSES.has(transaction.status) || time < start || time > end) return summary;
       if (transaction.type === "income") summary.incomeCents += transaction.amountCents;
@@ -111,4 +113,88 @@ export function calculateFinancialPosition(accounts, transactions, untilDate) {
     committedCents,
     freeMoneyCents: totalBalanceCents - reservedCents - committedCents,
   };
+}
+
+export function reconcileAccount(account, calculatedBalanceCents, statementBalanceCents, reconciledAt) {
+  validateAccount(account);
+  if (!Number.isSafeInteger(calculatedBalanceCents) || !Number.isSafeInteger(statementBalanceCents)) {
+    throw new TypeError("Os saldos da conciliação devem estar em centavos.");
+  }
+  if (Number.isNaN(Date.parse(reconciledAt))) throw new TypeError("Data de conciliação inválida.");
+  const differenceCents = statementBalanceCents - calculatedBalanceCents;
+  return {
+    ...account,
+    statementBalanceCents,
+    lastReconciledAt: reconciledAt,
+    reconciliationDifferenceCents: differenceCents,
+    reconciliationStatus: differenceCents === 0 ? "reconciled" : "difference_found",
+  };
+}
+
+export function confirmTransaction(transaction, confirmedAt) {
+  validateTransaction(transaction);
+  if (!["detected", "awaiting_confirmation", "pending"].includes(transaction.status)) {
+    throw new TypeError("Somente um lançamento pendente pode ser confirmado.");
+  }
+  if (Number.isNaN(Date.parse(confirmedAt))) throw new TypeError("Data de confirmação inválida.");
+  return { ...transaction, status: "confirmed", confirmedAt, updatedAt: confirmedAt };
+}
+
+export function correctTransaction(transaction, changes, correctedAt) {
+  validateTransaction(transaction);
+  if (!["confirmed", "corrected", "cleared"].includes(transaction.status)) {
+    throw new TypeError("Somente um lançamento confirmado pode ser corrigido.");
+  }
+  if (Number.isNaN(Date.parse(correctedAt))) throw new TypeError("Data de correção inválida.");
+  const corrected = {
+    ...transaction,
+    ...changes,
+    id: transaction.id,
+    status: "corrected",
+    correctedAt,
+    updatedAt: correctedAt,
+  };
+  validateTransaction(corrected);
+  return corrected;
+}
+
+function reverseType(transaction) {
+  if (transaction.type === "income") {
+    return { type: "expense", sourceAccountId: transaction.destinationAccountId };
+  }
+  if (transaction.type === "expense") {
+    return { type: "income", destinationAccountId: transaction.sourceAccountId };
+  }
+  return {
+    type: "transfer",
+    sourceAccountId: transaction.destinationAccountId,
+    destinationAccountId: transaction.sourceAccountId,
+  };
+}
+
+export function reverseTransaction(transaction, reversedAt, reversalId) {
+  validateTransaction(transaction);
+  if (!["confirmed", "corrected", "cleared"].includes(transaction.status)) {
+    throw new TypeError("Somente um lançamento confirmado pode ser desfeito.");
+  }
+  if (Number.isNaN(Date.parse(reversedAt))) throw new TypeError("Data de reversão inválida.");
+  if (typeof reversalId !== "string" || !reversalId.trim()) {
+    throw new TypeError("Identificador da reversão é obrigatório.");
+  }
+  const original = { ...transaction, status: "reversed", reversedAt, updatedAt: reversedAt };
+  const reversal = {
+    ...transaction,
+    ...reverseType(transaction),
+    id: reversalId,
+    date: reversedAt,
+    description: `Desfaz: ${transaction.description}`,
+    status: "confirmed",
+    origin: "atlas",
+    dedupeKey: `reversal:${transaction.id}`,
+    reversesTransactionId: transaction.id,
+    createdAt: reversedAt,
+    updatedAt: reversedAt,
+  };
+  validateTransaction(reversal);
+  return { original, reversal };
 }

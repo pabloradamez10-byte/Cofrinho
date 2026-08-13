@@ -3,9 +3,11 @@ import assert from "node:assert/strict";
 import {
   FINANCIAL_BACKUP_KEY,
   FINANCIAL_STORAGE_KEY,
+  PREVIOUS_FINANCIAL_STORAGE_KEY,
   initializeFinancialData,
   loadFinancialData,
   migrateLegacyData,
+  migrateFinancialV1,
   restoreFinancialBackup,
   saveFinancialData,
 } from "../src/financial-engine/index.js";
@@ -91,4 +93,30 @@ test("normaliza uma prévia antiga sem perder compatibilidade", () => {
   const loaded = loadFinancialData(storage);
   assert.equal(loaded.accounts.find((account) => account.id === "cofrinho-atual").reserved, true);
   assert.equal(loaded.activities[0].id, "legacy-migration");
+});
+
+test("cria categorias financeiras padrão sem dados fictícios na aplicação", () => {
+  const storage = memoryStorage();
+  const initialized = initializeFinancialData(null, storage).data;
+  assert.equal(initialized.transactions.length, 0);
+  assert.ok(initialized.categories.find((category) => category.id === "salario"));
+  assert.ok(initialized.categories.find((category) => category.id === "alimentacao"));
+});
+
+test("migra a estrutura financeira v1 e mantém a chave anterior intacta", () => {
+  const current = migrateLegacyData(legacy);
+  const v1 = { ...current, schemaVersion: 1 };
+  delete v1.categories;
+  const oldRaw = JSON.stringify(v1);
+  const storage = memoryStorage({ [PREVIOUS_FINANCIAL_STORAGE_KEY]: oldRaw });
+  const initialized = initializeFinancialData(null, storage);
+  assert.equal(initialized.ok, true);
+  assert.equal(initialized.data.schemaVersion, 2);
+  assert.equal(storage.getItem(PREVIOUS_FINANCIAL_STORAGE_KEY), oldRaw);
+  assert.ok(storage.getItem(FINANCIAL_STORAGE_KEY));
+  assert.ok(initialized.data.activities.some((item) => item.action === "financial_schema_migrated"));
+});
+
+test("recusa migração financeira v1 inválida antes de salvar", () => {
+  assert.throws(() => migrateFinancialV1({ schemaVersion: 1 }), /Listas financeiras/);
 });
