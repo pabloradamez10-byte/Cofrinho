@@ -4,7 +4,7 @@ import TopBar from "./TopBar";
 import { SAVING_CATEGORIES } from "../lib/constants";
 import { brl } from "../lib/helpers";
 
-export default function CofrinhoScreen({ data, onAdd, onDelete }) {
+export default function CofrinhoScreen({ data, onAdd, onDelete, onUndo, canUndo }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
   const [cat, setCat] = useState(SAVING_CATEGORIES[0].id);
@@ -29,6 +29,12 @@ export default function CofrinhoScreen({ data, onAdd, onDelete }) {
         subtitle={`${brl(total)} guardados em ${data.savings.length} registro${data.savings.length === 1 ? "" : "s"}`}
       />
       <div className="px-5">
+        {canUndo && (
+          <div className="mb-3 rounded-2xl p-3 flex items-center justify-between" style={{ background: "var(--primary-lt)" }}>
+            <span className="text-xs" style={{ color: "var(--ink)" }}>Economia excluída.</span>
+            <button onClick={onUndo} className="text-xs font-bold" style={{ color: "var(--primary-dk)" }}>Desfazer</button>
+          </div>
+        )}
         <button
           onClick={() => setOpen(true)}
           className="w-full rounded-2xl py-3.5 font-semibold text-sm flex items-center justify-center gap-2 mb-5"
@@ -78,7 +84,7 @@ export default function CofrinhoScreen({ data, onAdd, onDelete }) {
                   <span className="font-display font-semibold text-sm" style={{ color: "var(--primary-dk)" }}>
                     +{brl(s.value)}
                   </span>
-                  <button onClick={() => onDelete(s.id)} className="p-1.5 -mr-1">
+                  <button onClick={() => window.confirm("Excluir esta economia? Você poderá desfazer em seguida.") && onDelete(s.id)} className="p-1.5 -mr-1" aria-label="Excluir economia">
                     <Trash2 size={15} color="var(--ink-soft)" />
                   </button>
                 </div>
@@ -166,4 +172,3 @@ export default function CofrinhoScreen({ data, onAdd, onDelete }) {
     </div>
   );
 }
-

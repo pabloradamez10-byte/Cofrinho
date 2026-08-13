@@ -1,6 +1,9 @@
 import { Coffee, Utensils, Repeat, ShoppingBag, HelpCircle } from "lucide-react";
 
 export const STORAGE_KEY = "cofrinho_data_v1";
+export const SECURE_STORAGE_KEY = "cofrinho_data_v2";
+export const BACKUP_STORAGE_KEY = "cofrinho_backup_v2";
+export const DATA_SCHEMA_VERSION = 2;
 
 export const CATEGORIES = [
   { id: "dividas", label: "Sair das dívidas", emoji: "💳" },
@@ -130,4 +133,3 @@ export const TABS = [
   { id: "academia", label: "Academia", icon: "GraduationCap" },
   { id: "dashboard", label: "Painel", icon: "TrendingUp" },
 ];
-
