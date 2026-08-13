@@ -1,10 +1,11 @@
 import { toCents } from "./money.js";
 import { validateAccount, validateTransaction } from "./validation.js";
+import { validateCardPurchase, validateCreditCard } from "./cards.js";
 
-export const PREVIOUS_FINANCIAL_STORAGE_KEY = "cofrinho_financial_v1";
-export const FINANCIAL_STORAGE_KEY = "cofrinho_financial_v2";
-export const FINANCIAL_BACKUP_KEY = "cofrinho_financial_backup_v2";
-export const FINANCIAL_SCHEMA_VERSION = 2;
+export const PREVIOUS_FINANCIAL_STORAGE_KEY = "cofrinho_financial_v2";
+export const FINANCIAL_STORAGE_KEY = "cofrinho_financial_v3";
+export const FINANCIAL_BACKUP_KEY = "cofrinho_financial_backup_v3";
+export const FINANCIAL_SCHEMA_VERSION = 3;
 
 const DEFAULT_ACCOUNTS = Object.freeze([
   { id: "itau", name: "Itaú", type: "checking" },
@@ -82,7 +83,8 @@ export function validateFinancialData(data) {
   }
   if (!Array.isArray(data.accounts) || !Array.isArray(data.transactions)
       || !Array.isArray(data.goals) || !Array.isArray(data.categories)
-      || !Array.isArray(data.activities)) {
+      || !Array.isArray(data.activities) || !Array.isArray(data.creditCards)
+      || !Array.isArray(data.cardPurchases)) {
     throw new TypeError("Listas financeiras obrigatórias ausentes.");
   }
 
@@ -93,6 +95,13 @@ export function validateFinancialData(data) {
     ids.add(account.id);
   }
   data.transactions.forEach((transaction) => validateTransaction(transaction, ids));
+  const cardIds = new Set();
+  for (const card of data.creditCards) {
+    validateCreditCard(card);
+    if (cardIds.has(card.id)) throw new TypeError(`Cartão duplicado: ${card.id}.`);
+    cardIds.add(card.id);
+  }
+  data.cardPurchases.forEach((purchase) => validateCardPurchase(purchase, cardIds));
   const categoryIds = new Set();
   for (const category of data.categories) {
     if (!category || typeof category.id !== "string" || !category.id.trim()
@@ -116,29 +125,32 @@ export function createEmptyFinancialData() {
     accounts: DEFAULT_ACCOUNTS.map((account) => createAccount({ ...account, createdAt: now })),
     categories: clone(DEFAULT_CATEGORIES),
     transactions: [],
+    creditCards: [],
+    cardPurchases: [],
     goals: [],
     activities: [],
   };
 }
 
-export function migrateFinancialV1(data) {
-  if (!data || data.schemaVersion !== 1) throw new TypeError("Dados financeiros da versão 1 inválidos.");
+export function migrateFinancialV2(data) {
+  if (!data || data.schemaVersion !== 2) throw new TypeError("Dados financeiros da versão 2 inválidos.");
   const migratedAt = new Date().toISOString();
   const migrated = {
     ...clone(data),
     schemaVersion: FINANCIAL_SCHEMA_VERSION,
-    categories: clone(DEFAULT_CATEGORIES),
+    creditCards: [],
+    cardPurchases: [],
     activities: [...(data.activities ?? []), {
-      id: `financial-v2-migration-${migratedAt}`,
+      id: `financial-v3-migration-${migratedAt}`,
       date: migratedAt,
       actor: "system",
       action: "financial_schema_migrated",
-      title: "Motor financeiro atualizado",
-      description: "Estrutura financeira v1 preservada e preparada para confirmações e conciliação.",
+      title: "Cartões e faturas preparados",
+      description: "Estrutura financeira v2 preservada e preparada para cartões, faturas e parcelas.",
       status: "completed",
       reversible: true,
     }],
-    previousSchemaVersion: 1,
+    previousSchemaVersion: 2,
     updatedAt: migratedAt,
   };
   return validateFinancialData(migrated);
@@ -238,7 +250,7 @@ export function initializeFinancialData(legacyData, storage = localStorage) {
     if (existing) return { ok: true, data: existing, migrated: false };
     const previousRaw = storage.getItem(PREVIOUS_FINANCIAL_STORAGE_KEY);
     const data = previousRaw
-      ? migrateFinancialV1(JSON.parse(previousRaw))
+      ? migrateFinancialV2(JSON.parse(previousRaw))
       : legacyData ? migrateLegacyData(legacyData) : createEmptyFinancialData();
     const saved = saveFinancialData(data, storage);
     return saved.ok ? { ...saved, migrated: Boolean(legacyData) } : saved;
