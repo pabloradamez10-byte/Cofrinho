@@ -21,7 +21,7 @@ import BottomNav from "./components/BottomNav";
 
 import { MILESTONES, MOTIVATION } from "./lib/constants";
 import { loadData, saveData } from "./lib/helpers";
-import { initializeFinancialData } from "./financial-engine/index.js";
+import { commitImportPreview, initializeFinancialData, saveFinancialData } from "./financial-engine/index.js";
 
 export default function App() {
   const skipNextSave = useRef(false);
@@ -142,6 +142,18 @@ export default function App() {
 
   const financialReady = financialData && !financialError;
 
+  const confirmStatementImport = (candidates, metadata) => {
+    try {
+      const committed = commitImportPreview(financialData, candidates, metadata);
+      const saved = saveFinancialData(committed.data);
+      if (!saved.ok) return { ok: false, error: saved.error };
+      setFinancialData(saved.data);
+      return { ok: true, report: committed.report };
+    } catch (error) {
+      return { ok: false, error: error.message };
+    }
+  };
+
   return (
     <div className="font-body min-h-screen" style={{ background: "var(--bg)" }}>
       <div className="max-w-md mx-auto min-h-screen relative" style={{ background: "var(--bg)" }}>
@@ -157,7 +169,7 @@ export default function App() {
         {tab === "goals" && financialReady && <GoalsOverviewScreen financialData={financialData} />}
         {tab === "more" && <MoreScreen onOpen={setTab} />}
         {tab === "planning" && financialReady && <PlanningScreen financialData={financialData} onBack={() => setTab("more")} />}
-        {tab === "import" && financialReady && <ImportScreen financialData={financialData} onBack={() => setTab("more")} />}
+        {tab === "import" && financialReady && <ImportScreen financialData={financialData} onBack={() => setTab("more")} onConfirm={confirmStatementImport} />}
         {saveError && <div role="alert" className="mx-5 mt-4 rounded-2xl p-3 text-sm" style={{ background: "#FDECEC", color: "#9B1C1C" }}>{saveError}</div>}
         {tab === "simulador" && financialReady && <SimuladorScreen financialData={financialData} />}
         {tab === "academia" && <AcademiaScreen />}
