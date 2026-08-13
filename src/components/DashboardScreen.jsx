@@ -2,8 +2,9 @@ import React from "react";
 import { Wallet, Check, Flame, Target, PiggyBank } from "lucide-react";
 import TopBar from "./TopBar";
 import { brl } from "../lib/helpers";
+import DataSafetyPanel from "./DataSafetyPanel";
 
-export default function DashboardScreen({ data, streak }) {
+export default function DashboardScreen({ data, streak, onRestore }) {
   const total = data.savings.reduce((s, e) => s + e.value, 0);
   const percent = data.goal.target > 0 ? Math.min(100, (total / data.goal.target) * 100) : 0;
 
@@ -34,6 +35,9 @@ export default function DashboardScreen({ data, streak }) {
             </p>
           </div>
         ))}
+      </div>
+      <div className="px-5">
+        <DataSafetyPanel data={data} onRestore={onRestore} />
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 
 import Onboarding from "./components/Onboarding";
 import HomeScreen from "./components/HomeScreen";
@@ -15,18 +15,31 @@ import { MILESTONES, MOTIVATION } from "./lib/constants";
 import { loadData, saveData } from "./lib/helpers";
 
 export default function App() {
+  const skipNextSave = useRef(false);
   const [data, setData] = useState(null);
   const [tab, setTab] = useState("home");
   const [celebration, setCelebration] = useState(null);
   const [toast, setToast] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [deletedSaving, setDeletedSaving] = useState(null);
 
   useEffect(() => {
     const loaded = loadData();
-    if (loaded) setData(loaded);
+    if (loaded) {
+      skipNextSave.current = true;
+      setData(loaded);
+    }
   }, []);
 
   useEffect(() => {
-    if (data) saveData(data);
+    if (data) {
+      if (skipNextSave.current) {
+        skipNextSave.current = false;
+        return;
+      }
+      const result = saveData(data);
+      setSaveError(result.ok ? "" : "Não foi possível salvar seus dados. Exporte um backup antes de continuar.");
+    }
   }, [data]);
 
   const completeOnboarding = (goal) => {
@@ -63,7 +76,19 @@ export default function App() {
   };
 
   const deleteSaving = (id) => {
-    setData((prev) => ({ ...prev, savings: prev.savings.filter((s) => s.id !== id) }));
+    setData((prev) => {
+      const removed = prev.savings.find((s) => s.id === id);
+      if (!removed) return prev;
+      setDeletedSaving(removed);
+      return { ...prev, savings: prev.savings.filter((s) => s.id !== id) };
+    });
+  };
+
+  const undoDelete = () => {
+    if (!deletedSaving) return;
+    setData((prev) => ({ ...prev, savings: [...prev.savings, deletedSaving] }));
+    setDeletedSaving(null);
+    setToast("Economia restaurada.");
   };
 
   const completeMission = (date) => {
@@ -95,10 +120,11 @@ export default function App() {
     <div className="font-body min-h-screen" style={{ background: "var(--bg)" }}>
       <div className="max-w-md mx-auto min-h-screen relative" style={{ background: "var(--bg)" }}>
         {tab === "home" && <HomeScreen data={data} onAddQuick={completeMission} streak={streak} />}
-        {tab === "cofrinho" && <CofrinhoScreen data={data} onAdd={addSaving} onDelete={deleteSaving} />}
+        {saveError && <div role="alert" className="mx-5 mt-4 rounded-2xl p-3 text-sm" style={{ background: "#FDECEC", color: "#9B1C1C" }}>{saveError}</div>}
+        {tab === "cofrinho" && <CofrinhoScreen data={data} onAdd={addSaving} onDelete={deleteSaving} onUndo={undoDelete} canUndo={Boolean(deletedSaving)} />}
         {tab === "simulador" && <SimuladorScreen />}
         {tab === "academia" && <AcademiaScreen />}
-        {tab === "dashboard" && <DashboardScreen data={data} streak={streak} />}
+        {tab === "dashboard" && <DashboardScreen data={data} streak={streak} onRestore={(restored) => { setData(restored); setDeletedSaving(null); }} />}
         <div style={{ height: 84 }} />
       </div>
       <BottomNav tab={tab} setTab={setTab} />
