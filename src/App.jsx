@@ -22,7 +22,7 @@ import BottomNav from "./components/BottomNav";
 
 import { MILESTONES, MOTIVATION } from "./lib/constants";
 import { loadData, saveData } from "./lib/helpers";
-import { commitImportPreview, decideAtlasRequest, getLocalApiInfo, handleAtlasRequest, initializeFinancialData, pairAtlasClient, persistAtlasRequests, saveFinancialData } from "./financial-engine/index.js";
+import { commitImportPreview, decideAtlasRequest, getLocalApiInfo, handleAtlasRequest, importNativeAtlasRequests, initializeFinancialData, pairAtlasClient, persistAtlasRequests, saveFinancialData, syncNativeFinancialSnapshot } from "./financial-engine/index.js";
 
 export default function App() {
   const skipNextSave = useRef(false);
@@ -68,7 +68,23 @@ export default function App() {
     }
   }, [data, financialData]);
 
-  useEffect(() => { financialDataRef.current = financialData; }, [financialData]);
+  useEffect(() => {
+    financialDataRef.current = financialData;
+    if (financialData) syncNativeFinancialSnapshot(financialData).catch(() => {});
+  }, [financialData]);
+
+  useEffect(() => {
+    const drain = async () => {
+      try {
+        const count = await importNativeAtlasRequests();
+        if (count > 0) window.dispatchEvent(new CustomEvent("cofrinho:atlas-requests-changed"));
+      } catch {}
+    };
+    drain();
+    const timer = window.setInterval(drain, 2000);
+    document.addEventListener("visibilitychange", drain);
+    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", drain); };
+  }, []);
 
   useEffect(() => {
     if (!financialData) return undefined;
