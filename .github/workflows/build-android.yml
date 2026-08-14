@@ -41,6 +41,7 @@ jobs:
       - name: Generate and sync Android project
         run: |
           npx cap add android
+          node scripts/prepare-android-bridge.mjs
           npx cap sync android
 
       - name: Build installable debug APK
@@ -58,15 +59,16 @@ jobs:
           test -x "$AAPT"
           "$AAPT" dump badging "$APK" | grep -F "package: name='com.pablo.cofrinho'"
           unzip -l "$APK" | grep -F "assets/public/index.html"
+          "$AAPT" dump xmltree "$APK" AndroidManifest.xml | grep -F "CofrinhoBridgeProvider"
           mkdir -p dist-android
-          cp "$APK" "dist-android/Cofrinho-Android-1.1.0-teste.apk"
+          cp "$APK" "dist-android/Cofrinho-Android-1.2.0-Atlas.apk"
 
       - name: Publish test APK in GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="cofrinho-android-1.1.0-teste"
+          TAG="cofrinho-android-1.2.0-atlas"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --target "$GITHUB_SHA" --prerelease               --title "Cofrinho Android 1.1.0 — teste"               --notes "Primeiro APK Android do Cofrinho. Build de teste para validar instalação, dados locais e interface antes da ponte com o Atlas Pocket."
+            gh release create "$TAG" --target "$GITHUB_SHA" --prerelease               --title "Cofrinho Android 1.2.0 — ponte Atlas"               --notes "Cofrinho Android com ponte privada para o Atlas Pocket. Leituras são limitadas e propostas exigem confirmação no Cofrinho."
           fi
           gh release upload "$TAG" dist-android/Cofrinho-Android-1.1.0-teste.apk --clobber
