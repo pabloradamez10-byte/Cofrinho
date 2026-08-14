@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Check, Link2, ShieldCheck, X } from "lucide-react";
 import TopBar from "./TopBar";
-import { createAtlasPairing, fromCents, loadAtlasRequests } from "../financial-engine/index.js";
+import { createAtlasPairing, createNativeAtlasPairing, fromCents, loadAtlasRequests } from "../financial-engine/index.js";
 import { brl } from "../lib/helpers";
 
 export default function AtlasRequestsScreen({ onBack, onDecide }) {
@@ -9,7 +9,7 @@ export default function AtlasRequestsScreen({ onBack, onDecide }) {
   const [pairing, setPairing] = useState(null);
   const [message, setMessage] = useState("");
   useEffect(() => { const refresh = () => setRequests(loadAtlasRequests()); window.addEventListener("cofrinho:atlas-requests-changed", refresh); return () => window.removeEventListener("cofrinho:atlas-requests-changed", refresh); }, []);
-  async function generateCode() { setMessage(""); try { setPairing(await createAtlasPairing()); } catch (error) { setMessage(error.message); } }
+  async function generateCode() { setMessage(""); try { setPairing(await createNativeAtlasPairing() || await createAtlasPairing()); } catch (error) { setMessage(error.message); } }
   function decide(id, decision) { const result = onDecide(id, decision); setMessage(result.ok ? (decision === "approve" ? "Pedido aprovado e registrado." : "Pedido rejeitado e registrado.") : result.error); setRequests(loadAtlasRequests()); }
   const pending = requests.filter((request) => request.status === "awaiting_confirmation");
   return <div className="pb-4"><TopBar title="Pedidos do Atlas" subtitle="Nada é alterado sem sua confirmação" onBack={onBack} /><div className="px-5 space-y-4">
