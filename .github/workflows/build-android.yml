@@ -71,4 +71,4 @@ jobs:
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" --target "$GITHUB_SHA" --prerelease               --title "Cofrinho Android 1.2.0 — ponte Atlas"               --notes "Cofrinho Android com ponte privada para o Atlas Pocket. Leituras são limitadas e propostas exigem confirmação no Cofrinho."
           fi
-          gh release upload "$TAG" dist-android/Cofrinho-Android-1.1.0-teste.apk --clobber
+          gh release upload "$TAG" dist-android/Cofrinho-Android-1.2.0-Atlas.apk --clobber
