@@ -1,4 +1,5 @@
 export * from "./constants.js";
+export * from "./atlas-bridge.js";
 export * from "./cards.js";
 export * from "./decisions.js";
 export * from "./engine.js";
