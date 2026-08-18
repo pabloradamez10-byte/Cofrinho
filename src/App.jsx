@@ -18,6 +18,7 @@ import DashboardScreen from "./components/DashboardScreen";
 import CelebrationModal from "./components/CelebrationModal";
 import Toast from "./components/Toast";
 import BottomNav from "./components/BottomNav";
+import { createCofrinhoLocalApi, installCofrinhoLocalApi } from "./atlas-bridge/local-api.js";
 
 import { MILESTONES, MOTIVATION } from "./lib/constants";
 import { loadData, saveData } from "./lib/helpers";
@@ -35,6 +36,22 @@ export default function App() {
   const [financialError, setFinancialError] = useState("");
   const [selectedAccountId, setSelectedAccountId] = useState(null);
   const [selectedCardId, setSelectedCardId] = useState(null);
+  const [atlasPairing, setAtlasPairing] = useState(null);
+  const [atlasProposal, setAtlasProposal] = useState(null);
+  const financialDataRef = useRef(null);
+  const atlasApiRef = useRef(null);
+
+  useEffect(() => { financialDataRef.current = financialData; }, [financialData]);
+
+  useEffect(() => {
+    const api = createCofrinhoLocalApi({
+      getData: () => financialDataRef.current,
+      commitData: (nextData) => { financialDataRef.current = nextData; setFinancialData(nextData); },
+      onProposal: setAtlasProposal,
+    });
+    atlasApiRef.current = api;
+    return installCofrinhoLocalApi(api);
+  }, []);
 
   useEffect(() => {
     const loaded = loadData();
@@ -167,7 +184,7 @@ export default function App() {
           : <CardsScreen financialData={financialData} onBack={() => setTab("accounts")} onSelectCard={setSelectedCardId} />)}
         {tab === "activities" && financialReady && <ActivitiesScreen financialData={financialData} />}
         {tab === "goals" && financialReady && <GoalsOverviewScreen financialData={financialData} />}
-        {tab === "more" && <MoreScreen onOpen={setTab} />}
+        {tab === "more" && <MoreScreen onOpen={setTab} atlasPairing={atlasPairing} onGenerateAtlasPairing={() => setAtlasPairing(atlasApiRef.current.generatePairingCode())} />}
         {tab === "planning" && financialReady && <PlanningScreen financialData={financialData} onBack={() => setTab("more")} />}
         {tab === "import" && financialReady && <ImportScreen financialData={financialData} onBack={() => setTab("more")} onConfirm={confirmStatementImport} />}
         {saveError && <div role="alert" className="mx-5 mt-4 rounded-2xl p-3 text-sm" style={{ background: "#FDECEC", color: "#9B1C1C" }}>{saveError}</div>}
@@ -179,6 +196,7 @@ export default function App() {
       <BottomNav tab={tab === "cards" ? "accounts" : tab} setTab={(nextTab) => { if (nextTab !== "accounts") setSelectedAccountId(null); setSelectedCardId(null); setTab(nextTab); }} />
       <Toast text={toast} onDone={() => setToast("")} />
       <CelebrationModal milestone={celebration} onClose={() => setCelebration(null)} />
+      {atlasProposal && <div className="fixed inset-0 z-50 flex items-end justify-center p-4" style={{ background: "rgba(0,0,0,.55)" }}><div className="w-full max-w-md rounded-3xl p-5" style={{ background: "var(--surface)" }}><p className="font-bold text-lg">Confirmar lançamento do Atlas?</p><p className="mt-3">{atlasProposal.transaction.description}</p><p className="text-2xl font-bold mt-1">R$ {(atlasProposal.transaction.amountCents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p><p className="text-xs mt-3" style={{ color: "var(--ink-soft)" }}>Nada será alterado antes da sua confirmação.</p><div className="grid grid-cols-2 gap-3 mt-5"><button className="rounded-2xl py-3" style={{ border: "1px solid var(--line)" }} onClick={() => { atlasApiRef.current.reject(atlasProposal.proposalId); setAtlasProposal(null); }}>Recusar</button><button className="rounded-2xl py-3 font-semibold" style={{ background: "var(--primary)", color: "white" }} onClick={() => { atlasApiRef.current.confirm(atlasProposal.proposalId); setAtlasProposal(null); setToast("Lançamento do Atlas confirmado e salvo."); }}>Confirmar</button></div></div></div>}
     </div>
   );
 }
