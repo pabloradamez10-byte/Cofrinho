@@ -1,4 +1,4 @@
-import { confirmAtlasTransaction, createAtlasSnapshot, proposeAtlasTransaction, saveFinancialData } from "../financial-engine/index.js";
+import { confirmAtlasTransaction, createAtlasSnapshot, generateFinancialAlerts, proposeAtlasTransaction, saveFinancialData, summarizeFinancialAlerts } from "../financial-engine/index.js";
 
 export const COFRINHO_LOCAL_PROTOCOL = "cofrinho-local-v1";
 const randomId = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -42,6 +42,11 @@ export function createCofrinhoLocalApi({ getData, commitData, onProposal, now = 
       recurringEntries: data.recurringEntries, debts: data.debts,
       creditCards: data.creditCards.map(({ id, name, limitCents, closingDay, dueDay }) => ({ id, name, limitCents, closingDay, dueDay })),
     };
+    if (input.action === "read.notifications") {
+      const referenceDate = new Date(now()).toISOString().slice(0, 10);
+      const alerts = generateFinancialAlerts(data, referenceDate);
+      return { referenceDate, summary: summarizeFinancialAlerts(alerts), alerts };
+    }
     if (input.action === "propose.transaction") {
       const proposal = proposeAtlasTransaction(data, input.payload, { id: input.requestId, now: new Date(now()).toISOString() });
       proposals.set(proposal.proposalId, proposal);

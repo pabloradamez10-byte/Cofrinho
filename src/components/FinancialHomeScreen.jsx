@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { AlertCircle, CalendarClock, ChevronRight, Landmark, ShieldCheck, Wallet } from "lucide-react";
 import TopBar from "./TopBar";
-import { calculateFinancialPosition, fromCents } from "../financial-engine/index.js";
+import { calculateFinancialPosition, fromCents, generateFinancialAlerts, summarizeFinancialAlerts } from "../financial-engine/index.js";
 import { brl } from "../lib/helpers";
 
 export default function FinancialHomeScreen({ financialData, onOpenAccounts, onOpenActivities }) {
@@ -10,6 +10,15 @@ export default function FinancialHomeScreen({ financialData, onOpenAccounts, onO
     [financialData]
   );
   const pending = (financialData.activities ?? []).filter((activity) => activity.status === "needs_review");
+  const alerts = useMemo(() => generateFinancialAlerts(financialData, new Date().toISOString().slice(0, 10)), [financialData]);
+  const alertSummary = useMemo(() => summarizeFinancialAlerts(alerts), [alerts]);
+
+  const dueText = (alert) => {
+    if (!alert) return "Nenhum compromisso registrado";
+    if (alert.daysUntil === 0) return `Hoje · ${brl(fromCents(alert.amountCents))}`;
+    if (alert.daysUntil === 1) return `Amanhã · ${brl(fromCents(alert.amountCents))}`;
+    return `${new Date(`${alert.date}T12:00:00`).toLocaleDateString("pt-BR")} · ${brl(fromCents(alert.amountCents))}`;
+  };
 
   return (
     <div className="pb-4">
@@ -56,8 +65,8 @@ export default function FinancialHomeScreen({ financialData, onOpenAccounts, onO
         )}
 
         <div className="rounded-3xl p-4 space-y-4" style={{ background: "var(--surface)", border: "1px solid var(--line)" }}>
-          <div className="flex gap-3"><CalendarClock size={20} color="var(--primary)" /><div><p className="text-sm font-semibold">Próximo pagamento</p><p className="text-xs" style={{ color: "var(--ink-soft)" }}>Ainda não informado pelo Atlas</p></div></div>
-          <div className="flex gap-3"><Landmark size={20} color="var(--primary)" /><div><p className="text-sm font-semibold">Contas próximas</p><p className="text-xs" style={{ color: "var(--ink-soft)" }}>Nenhum compromisso registrado</p></div></div>
+          <div className="flex gap-3"><CalendarClock size={20} color="var(--primary)" /><div><p className="text-sm font-semibold">Próxima entrada</p><p className="text-xs" style={{ color: "var(--ink-soft)" }}>{alertSummary.nextIncome ? `${alertSummary.nextIncome.title} · ${dueText(alertSummary.nextIncome)}` : "Nenhuma entrada prevista"}</p></div></div>
+          <div className="flex gap-3"><Landmark size={20} color={alertSummary.actionable > 0 ? "var(--accent)" : "var(--primary)"} /><div><p className="text-sm font-semibold">Próxima conta</p><p className="text-xs" style={{ color: alertSummary.actionable > 0 ? "var(--accent)" : "var(--ink-soft)" }}>{alertSummary.nextExpense ? `${alertSummary.nextExpense.title} · ${dueText(alertSummary.nextExpense)}` : "Nenhum compromisso registrado"}</p>{alertSummary.overdue > 0 && <p className="text-[11px] font-semibold mt-1" style={{ color: "var(--accent)" }}>{alertSummary.overdue} compromisso(s) possivelmente vencido(s)</p>}</div></div>
         </div>
       </div>
     </div>
