@@ -81,7 +81,7 @@ export function generateDebtOccurrences(debt, fromDate, toDate) {
   let cursor = monthDate(from.getUTCFullYear(), from.getUTCMonth(), debt.dueDay);
   if (cursor < from) cursor = monthDate(from.getUTCFullYear(), from.getUTCMonth() + 1, debt.dueDay);
   for (let index = 0; index < debt.remainingInstallments && cursor <= to; index += 1) {
-    occurrences.push({ id: `${debt.id}:${index + 1}`, sourceId: debt.id, source: "debt", name: debt.name, date: formatDate(cursor), type: "expense", amountCents: Math.min(debt.installmentCents, debt.balanceCents) });
+    occurrences.push({ id: `${debt.id}:${formatDate(cursor)}`, sourceId: debt.id, source: "debt", name: debt.name, date: formatDate(cursor), type: "expense", amountCents: Math.min(debt.installmentCents, debt.balanceCents) });
     cursor = monthDate(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, debt.dueDay);
   }
   return occurrences;

@@ -4,7 +4,7 @@ import TopBar from "./TopBar";
 import { fromCents, getTransactionsAwaitingConfirmation } from "../financial-engine/index.js";
 import { brl } from "../lib/helpers";
 
-export default function ActivitiesScreen({ financialData }) {
+export default function ActivitiesScreen({ financialData, onUndo }) {
   const activities = financialData.activities ?? [];
   const awaiting = getTransactionsAwaitingConfirmation(financialData.transactions);
   return (
@@ -37,7 +37,8 @@ export default function ActivitiesScreen({ financialData }) {
             </div>
           );
         })}
-        <div className="rounded-3xl p-4 flex gap-3" style={{ background: "var(--primary-lt)" }}><ShieldCheck size={20} color="var(--primary)" /><p className="text-xs" style={{ color: "var(--ink-soft)" }}>Futuramente você poderá abrir cada ação, ver o antes e depois, corrigir ou desfazer quando for seguro.</p></div>
+        {financialData.transactions.filter((item) => ["confirmed", "corrected", "cleared"].includes(item.status) && !item.reversesTransactionId).slice().reverse().slice(0, 10).map((transaction) => <article key={`undo-${transaction.id}`} className="rounded-3xl p-4 flex gap-3" style={{ background: "var(--surface)", border: "1px solid var(--line)" }}><div className="flex-1"><p className="font-semibold text-sm">{transaction.description}</p><p className="text-xs mt-1" style={{ color: "var(--ink-soft)" }}>{brl(fromCents(transaction.amountCents))}</p></div><button onClick={() => onUndo?.(transaction.id)} className="rounded-xl px-3 text-xs font-semibold" style={{ background: "var(--accent-lt)", color: "var(--accent)" }}>Desfazer</button></article>)}
+        <div className="rounded-3xl p-4 flex gap-3" style={{ background: "var(--primary-lt)" }}><ShieldCheck size={20} color="var(--primary)" /><p className="text-xs" style={{ color: "var(--ink-soft)" }}>As movimentações podem ser desfeitas sem apagar o registro original.</p></div>
       </div>
     </div>
   );

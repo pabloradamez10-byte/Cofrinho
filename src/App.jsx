@@ -12,6 +12,11 @@ import GoalsOverviewScreen from "./components/GoalsOverviewScreen";
 import MoreScreen from "./components/MoreScreen";
 import PlanningScreen from "./components/PlanningScreen";
 import ImportScreen from "./components/ImportScreen";
+import QuickEntryScreen from "./components/QuickEntryScreen";
+import FinanceManagerScreen from "./components/FinanceManagerScreen";
+import FinancialAgendaScreen from "./components/FinancialAgendaScreen";
+import PurchaseDecisionScreen from "./components/PurchaseDecisionScreen";
+import FinancialBackupScreen from "./components/FinancialBackupScreen";
 import SimuladorScreen from "./components/SimuladorScreen";
 import AcademiaScreen from "./components/AcademiaScreen";
 import DashboardScreen from "./components/DashboardScreen";
@@ -22,7 +27,7 @@ import { createCofrinhoLocalApi, installCofrinhoLocalApi } from "./atlas-bridge/
 
 import { MILESTONES, MOTIVATION } from "./lib/constants";
 import { loadData, saveData } from "./lib/helpers";
-import { commitImportPreview, initializeFinancialData, saveFinancialData } from "./financial-engine/index.js";
+import { commitImportPreview, initializeFinancialData, restoreFinancialBackup, saveAccount, saveCardPurchase, saveCreditCard, saveDebt, saveFinancialData, saveRecurringEntry, saveTransaction, settleFinancialAlert, undoFinancialTransaction } from "./financial-engine/index.js";
 
 export default function App() {
   const skipNextSave = useRef(false);
@@ -171,6 +176,17 @@ export default function App() {
     }
   };
 
+  const commitFinancialOperation = (operation, successMessage) => {
+    try {
+      const nextData = operation(financialData);
+      const saved = saveFinancialData(nextData);
+      if (!saved.ok) return { ok: false, error: saved.error };
+      setFinancialData(saved.data);
+      setToast(successMessage);
+      return { ok: true, data: saved.data };
+    } catch (error) { return { ok: false, error: error.message }; }
+  };
+
   return (
     <div className="font-body min-h-screen" style={{ background: "var(--bg)" }}>
       <div className="max-w-md mx-auto min-h-screen relative" style={{ background: "var(--bg)" }}>
@@ -182,11 +198,23 @@ export default function App() {
         {tab === "cards" && financialReady && (selectedCardId
           ? <CardDetailScreen cardId={selectedCardId} financialData={financialData} onBack={() => setSelectedCardId(null)} />
           : <CardsScreen financialData={financialData} onBack={() => setTab("accounts")} onSelectCard={setSelectedCardId} />)}
-        {tab === "activities" && financialReady && <ActivitiesScreen financialData={financialData} />}
+        {tab === "activities" && financialReady && <ActivitiesScreen financialData={financialData} onUndo={(transactionId) => commitFinancialOperation((current) => undoFinancialTransaction(current, transactionId), "Movimentação desfeita.")} />}
         {tab === "goals" && financialReady && <GoalsOverviewScreen financialData={financialData} />}
         {tab === "more" && <MoreScreen onOpen={setTab} atlasPairing={atlasPairing} onGenerateAtlasPairing={() => setAtlasPairing(atlasApiRef.current.generatePairingCode())} />}
         {tab === "planning" && financialReady && <PlanningScreen financialData={financialData} onBack={() => setTab("more")} />}
         {tab === "import" && financialReady && <ImportScreen financialData={financialData} onBack={() => setTab("more")} onConfirm={confirmStatementImport} />}
+        {tab === "entry" && financialReady && <QuickEntryScreen financialData={financialData} onBack={() => setTab("more")} onSave={(input) => commitFinancialOperation((current) => saveTransaction(current, input), "Movimentação registrada.")} />}
+        {tab === "manage" && financialReady && <FinanceManagerScreen financialData={financialData} onBack={() => setTab("more")}
+          onSaveAccount={(input) => commitFinancialOperation((current) => saveAccount(current, input), "Conta salva.")}
+          onSaveCard={(input) => commitFinancialOperation((current) => saveCreditCard(current, input), "Cartão salvo.")}
+          onSavePurchase={(input) => commitFinancialOperation((current) => saveCardPurchase(current, input), "Compra registrada.")}
+          onSaveRecurring={(input) => commitFinancialOperation((current) => saveRecurringEntry(current, input), "Recorrência salva.")}
+          onSaveDebt={(input) => commitFinancialOperation((current) => saveDebt(current, input), "Dívida salva.")} />}
+        {tab === "agenda" && financialReady && <FinancialAgendaScreen financialData={financialData} onBack={() => setTab("more")} onSettle={(alert, accountId) => commitFinancialOperation((current) => settleFinancialAlert(current, alert, accountId), alert.type === "income" ? "Recebimento confirmado." : "Pagamento confirmado.")} />}
+        {tab === "decision" && financialReady && <PurchaseDecisionScreen financialData={financialData} onBack={() => setTab("more")} />}
+        {tab === "financial-backup" && financialReady && <FinancialBackupScreen financialData={financialData} onBack={() => setTab("more")}
+          onImport={(restored) => { const saved = saveFinancialData(restored); if (saved.ok) setFinancialData(saved.data); return saved; }}
+          onRestoreAutomatic={() => commitFinancialOperation(() => restoreFinancialBackup(), "Versão financeira anterior restaurada.")} />}
         {saveError && <div role="alert" className="mx-5 mt-4 rounded-2xl p-3 text-sm" style={{ background: "#FDECEC", color: "#9B1C1C" }}>{saveError}</div>}
         {tab === "simulador" && financialReady && <SimuladorScreen financialData={financialData} />}
         {tab === "academia" && <AcademiaScreen />}

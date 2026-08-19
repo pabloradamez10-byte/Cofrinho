@@ -1,15 +1,19 @@
 import React from "react";
-import { Calculator, CalendarRange, ChevronRight, FileInput, GraduationCap, LayoutDashboard, ShieldCheck } from "lucide-react";
+import { Calculator, CalendarCheck, CalendarRange, ChevronRight, CircleDollarSign, FileInput, GraduationCap, LayoutDashboard, ListPlus, Settings2, ShieldCheck } from "lucide-react";
 import TopBar from "./TopBar";
 import AtlasConnectionPanel from "./AtlasConnectionPanel";
 
 const ITEMS = [
+  { id: "entry", title: "Nova movimentação", subtitle: "Entrada, saída ou transferência", icon: ListPlus },
+  { id: "agenda", title: "Agenda financeira", subtitle: "Pagar, receber e acompanhar vencimentos", icon: CalendarCheck },
+  { id: "manage", title: "Cadastros financeiros", subtitle: "Contas, cartões, recorrências e dívidas", icon: Settings2 },
+  { id: "decision", title: "Posso comprar?", subtitle: "Simule parcelas antes de decidir", icon: CircleDollarSign },
   { id: "planning", title: "Planejamento financeiro", subtitle: "Recorrências, dívidas e previsões", icon: CalendarRange },
   { id: "import", title: "Importar extrato", subtitle: "Prévia segura de CSV e OFX", icon: FileInput },
   { id: "simulador", title: "Simulador", subtitle: "Teste metas e decisões", icon: Calculator },
   { id: "academia", title: "Academia financeira", subtitle: "Conteúdos e aprendizado", icon: GraduationCap },
   { id: "dashboard", title: "Painel da versão atual", subtitle: "Indicadores e histórico do Cofrinho", icon: LayoutDashboard },
-  { id: "dashboard", title: "Proteção dos dados", subtitle: "Backup, restauração e recuperação", icon: ShieldCheck },
+  { id: "financial-backup", title: "Proteção dos dados", subtitle: "Backup financeiro integral", icon: ShieldCheck },
 ];
 
 export default function MoreScreen({ onOpen, atlasPairing, onGenerateAtlasPairing }) {

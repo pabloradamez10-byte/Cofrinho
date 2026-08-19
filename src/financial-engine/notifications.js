@@ -92,7 +92,13 @@ export function generateFinancialAlerts(data, referenceDate, options = {}) {
     ...cardOccurrences(data, from, to),
   ];
 
+  const settledKeys = new Set((data.transactions ?? [])
+    .filter((transaction) => ["confirmed", "corrected", "cleared"].includes(transaction.status))
+    .map((transaction) => transaction.dedupeKey)
+    .filter(Boolean));
+
   return occurrences
+    .filter((occurrence) => !settledKeys.has(`settlement:alert:${occurrence.id}`))
     .map((occurrence) => occurrenceToAlert(occurrence, formatDate(reference)))
     .sort((a, b) => a.date.localeCompare(b.date)
       || (a.type === "expense" ? -1 : 1)

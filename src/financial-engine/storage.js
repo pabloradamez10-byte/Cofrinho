@@ -270,3 +270,16 @@ export function restoreFinancialBackup(storage = localStorage) {
   if (!raw) throw new Error("Nenhuma versão financeira anterior foi encontrada.");
   return clone(validateFinancialData(JSON.parse(raw)));
 }
+
+export function exportFinancialBackup(data) {
+  const safe = clone(validateFinancialData(data));
+  return JSON.stringify({ app: "cofrinho", kind: "financial-backup", schemaVersion: FINANCIAL_SCHEMA_VERSION, exportedAt: new Date().toISOString(), data: safe }, null, 2);
+}
+
+export function importFinancialBackup(raw) {
+  const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+  if (!parsed || parsed.app !== "cofrinho" || parsed.kind !== "financial-backup" || parsed.schemaVersion !== FINANCIAL_SCHEMA_VERSION) {
+    throw new TypeError("Arquivo de backup financeiro inválido.");
+  }
+  return clone(validateFinancialData(parsed.data));
+}
