@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { analyzeGoal, simulateIncomeIncrease, simulateNewInstallment } from "../src/financial-engine/index.js";
+import { analyzeGoal, analyzePurchaseDecision, simulateIncomeIncrease, simulateNewInstallment } from "../src/financial-engine/index.js";
 
 const data = {
   accounts: [{ id: "itau", name: "Itaú", type: "checking", openingBalanceCents: 100_000, active: true }],
@@ -32,4 +32,18 @@ test("simula aumento de renda nos horizontes de 30, 60 e 90 dias", () => {
   const result = simulateIncomeIncrease(data, "2026-08-01", 50_000);
   assert.deepEqual(result.map((item) => item.addedIncomeCents), [50_000, 100_000, 150_000]);
   assert.ok(result.every((item) => item.simulatedBalanceCents > item.baseBalanceCents));
+});
+
+test("responde se uma compra parcelada cabe no dinheiro livre e no mês", () => {
+  const canBuy = analyzePurchaseDecision(data, "2026-08-01", { itemName: "PS5", installmentCents: 36_000, installmentCount: 12 });
+  assert.equal(canBuy.recommendation, "can_buy");
+  assert.equal(canBuy.totalPurchaseCents, 432_000);
+  assert.equal(canBuy.monthlyCapacityAfterCents, 64_000);
+  assert.equal(canBuy.readOnly, true);
+
+  const constrained = { ...data, accounts: [{ ...data.accounts[0], openingBalanceCents: 12_000 }] };
+  const shouldNotBuy = analyzePurchaseDecision(constrained, "2026-08-01", { itemName: "PS5", installmentCents: 36_000, installmentCount: 12 });
+  assert.equal(shouldNotBuy.recommendation, "do_not_buy");
+  assert.equal(shouldNotBuy.reasonCode, "insufficient_free_money");
+  assert.equal(shouldNotBuy.freeMoneyCents, 12_000);
 });

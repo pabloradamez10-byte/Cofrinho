@@ -1,4 +1,4 @@
-import { confirmAtlasTransaction, createAtlasSnapshot, generateFinancialAlerts, proposeAtlasTransaction, saveFinancialData, summarizeFinancialAlerts } from "../financial-engine/index.js";
+import { analyzePurchaseDecision, confirmAtlasTransaction, createAtlasSnapshot, generateFinancialAlerts, proposeAtlasTransaction, proposeNotificationTransaction, saveFinancialData, summarizeFinancialAlerts } from "../financial-engine/index.js";
 
 export const COFRINHO_LOCAL_PROTOCOL = "cofrinho-local-v1";
 const randomId = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -46,6 +46,15 @@ export function createCofrinhoLocalApi({ getData, commitData, onProposal, now = 
       const referenceDate = new Date(now()).toISOString().slice(0, 10);
       const alerts = generateFinancialAlerts(data, referenceDate);
       return { referenceDate, summary: summarizeFinancialAlerts(alerts), alerts };
+    }
+    if (input.action === "simulate.purchase") {
+      return analyzePurchaseDecision(data, new Date(now()).toISOString().slice(0, 10), input.payload);
+    }
+    if (input.action === "propose.bank_notification") {
+      const proposal = proposeNotificationTransaction(data, input.payload, { id: input.requestId, now: new Date(now()).toISOString() });
+      proposals.set(proposal.proposalId, proposal);
+      onProposal?.(proposal);
+      return { proposalId: proposal.proposalId, state: proposal.state, origin: "notification", requiresPabloConfirmation: true };
     }
     if (input.action === "propose.transaction") {
       const proposal = proposeAtlasTransaction(data, input.payload, { id: input.requestId, now: new Date(now()).toISOString() });

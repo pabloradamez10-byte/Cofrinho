@@ -74,7 +74,7 @@ export function proposeAtlasTransaction(data, input, options = {}) {
     amountCents: input.amountCents,
     type,
     status: "awaiting_confirmation",
-    origin: "atlas",
+    origin: options.origin ?? "atlas",
     categoryId: input.categoryId ?? "outros",
     sourceAccountId,
     destinationAccountId,
@@ -96,6 +96,20 @@ export function proposeAtlasTransaction(data, input, options = {}) {
     expiresAt: options.expiresAt ?? new Date(Date.parse(now) + 30 * 60_000).toISOString(),
     transaction,
   };
+}
+
+export function proposeNotificationTransaction(data, input, options = {}) {
+  if (!input || typeof input !== "object") throw new TypeError("Notificação financeira inválida.");
+  const sourceApp = requireText(input.sourceApp, "Aplicativo de origem");
+  const notificationId = requireText(input.notificationId, "Identificador da notificação");
+  if (!input.transaction || typeof input.transaction !== "object") {
+    throw new TypeError("Movimentação detectada na notificação é obrigatória.");
+  }
+  return proposeAtlasTransaction(data, {
+    ...input.transaction,
+    dedupeKey: `notification:${sourceApp}:${notificationId}`,
+    note: input.transaction.note ?? `Detectado em notificação de ${sourceApp}`,
+  }, { ...options, origin: "notification" });
 }
 
 export function confirmAtlasTransaction(data, proposal, confirmedAt = new Date().toISOString()) {

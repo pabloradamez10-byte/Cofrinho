@@ -1,5 +1,6 @@
 import { assertCents } from "./money.js";
 import { forecastFinancialFuture } from "./planning.js";
+import { calculateFinancialPosition } from "./engine.js";
 
 function parseDate(value, field) {
   const date = new Date(`${value?.slice(0, 10)}T12:00:00Z`);
@@ -58,6 +59,45 @@ export function simulateNewInstallment(data, today, installmentCents) {
     && installmentCents <= monthlyCapacityCents
     && forecasts.every((item) => item.simulatedBalanceCents >= 0);
   return { installmentCents, monthlyCapacityCents, affordable, forecasts };
+}
+
+export function analyzePurchaseDecision(data, today, input) {
+  if (!input || typeof input !== "object") throw new TypeError("Compra simulada inválida.");
+  const installmentCents = input.installmentCents;
+  const installmentCount = input.installmentCount;
+  assertCents(installmentCents, "Valor da parcela");
+  if (installmentCents <= 0) throw new RangeError("O valor da parcela deve ser maior que zero.");
+  if (!Number.isInteger(installmentCount) || installmentCount < 1 || installmentCount > 120) {
+    throw new TypeError("Quantidade de parcelas inválida.");
+  }
+
+  const simulation = simulateNewInstallment(data, today, installmentCents);
+  const position = calculateFinancialPosition(data.accounts, data.transactions, today);
+  const monthlyCapacityAfterCents = simulation.monthlyCapacityCents - installmentCents;
+  const totalPurchaseCents = installmentCents * installmentCount;
+  const hasImmediateRoom = position.freeMoneyCents >= installmentCents;
+  const lowestProjectedBalanceCents = Math.min(...simulation.forecasts.map((forecast) => forecast.simulatedBalanceCents));
+  const approved = simulation.affordable && hasImmediateRoom;
+  const recommendation = approved ? "can_buy" : "do_not_buy";
+  const reasonCode = !hasImmediateRoom ? "insufficient_free_money"
+    : installmentCents > simulation.monthlyCapacityCents ? "insufficient_monthly_capacity"
+      : lowestProjectedBalanceCents < 0 ? "negative_projected_balance"
+        : "affordable";
+
+  return {
+    itemName: typeof input.itemName === "string" && input.itemName.trim() ? input.itemName.trim() : "Compra simulada",
+    recommendation,
+    reasonCode,
+    installmentCents,
+    installmentCount,
+    totalPurchaseCents,
+    freeMoneyCents: position.freeMoneyCents,
+    monthlyCapacityCents: simulation.monthlyCapacityCents,
+    monthlyCapacityAfterCents,
+    lowestProjectedBalanceCents,
+    forecasts: simulation.forecasts.map(({ days, projectedBalanceCents, simulatedBalanceCents }) => ({ days, projectedBalanceCents, simulatedBalanceCents })),
+    readOnly: true,
+  };
 }
 
 export function simulateIncomeIncrease(data, today, increaseCents) {
