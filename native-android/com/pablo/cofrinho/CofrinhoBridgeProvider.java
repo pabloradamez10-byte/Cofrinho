@@ -9,7 +9,9 @@ import java.util.UUID;
 import org.json.*;
 
 public class CofrinhoBridgeProvider extends ContentProvider {
-  private static final long SESSION_MS = 30 * 60_000L;
+  private static final long SESSION_MS = 30L * 24 * 60 * 60_000L;
+  private static final String ATLAS_PACKAGE = "com.pablo.atlaspocket";
+  private static final String PROTOCOL = "cofrinho-android-v1";
   @Override public boolean onCreate() { return true; }
 
   @Override public Bundle call(String method, String arg, Bundle extras) {
@@ -22,7 +24,7 @@ public class CofrinhoBridgeProvider extends ContentProvider {
   }
 
   private Bundle pair(Bundle e) {
-    if (e == null || !"atlas-pocket".equals(e.getString("clientId"))) return error("invalid_client", "Cliente inválido");
+    if (e == null || !PROTOCOL.equals(e.getString("protocol")) || !"atlas-pocket".equals(e.getString("clientId"))) return error("invalid_client", "Cliente ou protocolo inválido");
     android.content.SharedPreferences p = CofrinhoBridgePlugin.prefs(getContext());
     String expected = p.getString("pair_code", "");
     if (System.currentTimeMillis() > p.getLong("pair_expires", 0) || !expected.equals(e.getString("code"))) return error("invalid_code", "Código inválido ou expirado");
@@ -33,11 +35,12 @@ public class CofrinhoBridgeProvider extends ContentProvider {
   }
 
   private Bundle request(Bundle e) throws Exception {
-    if (e == null) return error("invalid_request", "Pedido ausente");
+    if (e == null || !PROTOCOL.equals(e.getString("protocol")) || !"atlas-pocket".equals(e.getString("clientId"))) return error("invalid_request", "Pedido, cliente ou protocolo inválido");
     android.content.SharedPreferences p = CofrinhoBridgePlugin.prefs(getContext());
     if (!p.getString("token", "").equals(e.getString("token")) || System.currentTimeMillis() > p.getLong("token_expires", 0)) return error("unauthorized", "Pareamento necessário");
     long timestamp = e.getLong("timestamp", 0);
     if (Math.abs(System.currentTimeMillis() - timestamp) > 5 * 60_000L) return error("expired_request", "Pedido expirado");
+    p.edit().putLong("token_expires", System.currentTimeMillis() + SESSION_MS).apply();
     String action = e.getString("action", "");
     JSONObject snapshot = new JSONObject(p.getString("snapshot", "{}"));
     JSONObject result = new JSONObject();
@@ -69,6 +72,11 @@ public class CofrinhoBridgeProvider extends ContentProvider {
     JSONObject item=new JSONObject().put("requestId",requestId).put("action","propose.transaction").put("status","awaiting_confirmation").put("createdAt",System.currentTimeMillis()).put("payload",payload);
     inbox.put(item); p.edit().putString("inbox",inbox.toString()).apply();
     Bundle out=new Bundle(); out.putBoolean("ok",true); out.putBoolean("requiresConfirmation",true); out.putString("requestId",requestId); return out;
+  }
+
+  private boolean isAuthorizedCaller() {
+    String caller = getCallingPackage();
+    return ATLAS_PACKAGE.equals(caller);
   }
 
   private Bundle error(String code,String message){ Bundle b=new Bundle(); b.putBoolean("ok",false); b.putString("errorCode",code); b.putString("error",message); return b; }

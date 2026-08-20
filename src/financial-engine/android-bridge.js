@@ -18,6 +18,11 @@ export async function createNativeAtlasPairing() {
   return NativeBridge.createPairing();
 }
 
+export async function getNativeAtlasConnectionStatus() {
+  if (!isNativeCofrinho()) return { connected: false, expiresAt: 0 };
+  return NativeBridge.getConnectionStatus();
+}
+
 export async function importNativeAtlasRequests(storage = localStorage) {
   if (!isNativeCofrinho()) return [];
   const response = await NativeBridge.drainRequests();
