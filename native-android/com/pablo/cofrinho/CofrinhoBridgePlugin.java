@@ -33,6 +33,17 @@ public class CofrinhoBridgePlugin extends Plugin {
     call.resolve(result);
   }
 
+  @PluginMethod public void getConnectionStatus(PluginCall call) {
+    SharedPreferences p = prefs(getContext());
+    long expiresAt = p.getLong("token_expires", 0L);
+    boolean connected = !p.getString("token", "").isEmpty() && expiresAt > System.currentTimeMillis();
+    if (!connected) p.edit().remove("token").remove("token_expires").apply();
+    JSObject result = new JSObject();
+    result.put("connected", connected);
+    result.put("expiresAt", connected ? expiresAt : 0L);
+    call.resolve(result);
+  }
+
   @PluginMethod public void drainRequests(PluginCall call) {
     SharedPreferences p = prefs(getContext());
     String requests = p.getString("inbox", "[]");
