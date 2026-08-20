@@ -2,7 +2,7 @@ name: Build Cofrinho Android APK
 
 on:
   push:
-    branches: ["feat/android-atlas-bridge"]
+    branches: ["feat/android-atlas-bridge", "agent/**"]
   workflow_dispatch:
 
 permissions:
