@@ -13,16 +13,20 @@ import MoreScreen from "./components/MoreScreen";
 import PlanningScreen from "./components/PlanningScreen";
 import ImportScreen from "./components/ImportScreen";
 import AtlasRequestsScreen from "./components/AtlasRequestsScreen";
+import QuickEntryScreen from "./components/QuickEntryScreen";
+import FinanceManagerScreen from "./components/FinanceManagerScreen";
+import FinancialAgendaScreen from "./components/FinancialAgendaScreen";
+import PurchaseDecisionScreen from "./components/PurchaseDecisionScreen";
+import FinancialBackupScreen from "./components/FinancialBackupScreen";
 import SimuladorScreen from "./components/SimuladorScreen";
 import AcademiaScreen from "./components/AcademiaScreen";
 import DashboardScreen from "./components/DashboardScreen";
 import CelebrationModal from "./components/CelebrationModal";
 import Toast from "./components/Toast";
 import BottomNav from "./components/BottomNav";
-
 import { MILESTONES, MOTIVATION } from "./lib/constants";
 import { loadData, saveData } from "./lib/helpers";
-import { commitImportPreview, decideAtlasRequest, getLocalApiInfo, handleAtlasRequest, importNativeAtlasRequests, initializeFinancialData, pairAtlasClient, persistAtlasRequests, saveFinancialData, syncNativeFinancialSnapshot } from "./financial-engine/index.js";
+import { commitImportPreview, decideAtlasRequest, getLocalApiInfo, handleAtlasRequest, importNativeAtlasRequests, initializeFinancialData, pairAtlasClient, persistAtlasRequests, restoreFinancialBackup, saveAccount, saveCardPurchase, saveCreditCard, saveDebt, saveFinancialData, saveRecurringEntry, saveTransaction, settleFinancialAlert, syncNativeFinancialSnapshot, undoFinancialTransaction } from "./financial-engine/index.js";
 
 export default function App() {
   const skipNextSave = useRef(false);
@@ -185,15 +189,26 @@ export default function App() {
     }
   };
 
-  const decideOnAtlasRequest = (requestId, decision) => {
+  const decideOnAtlasRequest = (requestId, decision, accountId = null) => {
     try {
-      const decided = decideAtlasRequest(financialData, requestId, decision);
+      const decided = decideAtlasRequest(financialData, requestId, decision, localStorage, new Date().toISOString(), accountId);
       const saved = saveFinancialData(decided.data);
       if (!saved.ok) return { ok: false, error: saved.error };
       persistAtlasRequests(decided.requests);
       setFinancialData(saved.data);
       window.dispatchEvent(new CustomEvent("cofrinho:atlas-requests-changed"));
       return { ok: true, request: decided.request };
+    } catch (error) { return { ok: false, error: error.message }; }
+  };
+
+  const commitFinancialOperation = (operation, successMessage) => {
+    try {
+      const nextData = operation(financialData);
+      const saved = saveFinancialData(nextData);
+      if (!saved.ok) return { ok: false, error: saved.error };
+      setFinancialData(saved.data);
+      setToast(successMessage);
+      return { ok: true, data: saved.data };
     } catch (error) { return { ok: false, error: error.message }; }
   };
 
@@ -208,12 +223,24 @@ export default function App() {
         {tab === "cards" && financialReady && (selectedCardId
           ? <CardDetailScreen cardId={selectedCardId} financialData={financialData} onBack={() => setSelectedCardId(null)} />
           : <CardsScreen financialData={financialData} onBack={() => setTab("accounts")} onSelectCard={setSelectedCardId} />)}
-        {tab === "activities" && financialReady && <ActivitiesScreen financialData={financialData} />}
+        {tab === "activities" && financialReady && <ActivitiesScreen financialData={financialData} onUndo={(transactionId) => commitFinancialOperation((current) => undoFinancialTransaction(current, transactionId), "Movimentação desfeita.")} />}
         {tab === "goals" && financialReady && <GoalsOverviewScreen financialData={financialData} />}
         {tab === "more" && <MoreScreen onOpen={setTab} />}
         {tab === "planning" && financialReady && <PlanningScreen financialData={financialData} onBack={() => setTab("more")} />}
         {tab === "import" && financialReady && <ImportScreen financialData={financialData} onBack={() => setTab("more")} onConfirm={confirmStatementImport} />}
-        {tab === "atlas-requests" && financialReady && <AtlasRequestsScreen onBack={() => setTab("more")} onDecide={decideOnAtlasRequest} />}
+        {tab === "atlas-requests" && financialReady && <AtlasRequestsScreen financialData={financialData} onBack={() => setTab("more")} onDecide={decideOnAtlasRequest} />}
+        {tab === "entry" && financialReady && <QuickEntryScreen financialData={financialData} onBack={() => setTab("more")} onSave={(input) => commitFinancialOperation((current) => saveTransaction(current, input), "Movimentação registrada.")} />}
+        {tab === "manage" && financialReady && <FinanceManagerScreen financialData={financialData} onBack={() => setTab("more")}
+          onSaveAccount={(input) => commitFinancialOperation((current) => saveAccount(current, input), "Conta salva.")}
+          onSaveCard={(input) => commitFinancialOperation((current) => saveCreditCard(current, input), "Cartão salvo.")}
+          onSavePurchase={(input) => commitFinancialOperation((current) => saveCardPurchase(current, input), "Compra registrada.")}
+          onSaveRecurring={(input) => commitFinancialOperation((current) => saveRecurringEntry(current, input), "Recorrência salva.")}
+          onSaveDebt={(input) => commitFinancialOperation((current) => saveDebt(current, input), "Dívida salva.")} />}
+        {tab === "agenda" && financialReady && <FinancialAgendaScreen financialData={financialData} onBack={() => setTab("more")} onSettle={(alert, accountId) => commitFinancialOperation((current) => settleFinancialAlert(current, alert, accountId), alert.type === "income" ? "Recebimento confirmado." : "Pagamento confirmado.")} />}
+        {tab === "decision" && financialReady && <PurchaseDecisionScreen financialData={financialData} onBack={() => setTab("more")} />}
+        {tab === "financial-backup" && financialReady && <FinancialBackupScreen financialData={financialData} onBack={() => setTab("more")}
+          onImport={(restored) => { const saved = saveFinancialData(restored); if (saved.ok) setFinancialData(saved.data); return saved; }}
+          onRestoreAutomatic={() => commitFinancialOperation(() => restoreFinancialBackup(), "Versão financeira anterior restaurada.")} />}
         {saveError && <div role="alert" className="mx-5 mt-4 rounded-2xl p-3 text-sm" style={{ background: "#FDECEC", color: "#9B1C1C" }}>{saveError}</div>}
         {tab === "simulador" && financialReady && <SimuladorScreen financialData={financialData} />}
         {tab === "academia" && <AcademiaScreen />}

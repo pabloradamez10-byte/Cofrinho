@@ -52,6 +52,23 @@ test("Atlas cria proposta, mas saldo só muda após confirmação de Pablo", asy
   assert.equal(loadAtlasRequests(storage)[0].status, "approved");
 });
 
+test("proposta nativa sem conta exige escolha explícita antes de aprovar", async () => {
+  const storage = memoryStorage();
+  const data = createEmptyFinancialData();
+  const requestId = "request:native:001";
+  persistAtlasRequests([{ requestId, action: "propose.transaction", status: "awaiting_confirmation", payload: { transaction: {
+    id: `atlas-${requestId}`, type: "expense", date: "2026-08-13", description: "Combustível", amountCents: 8_700,
+    status: "awaiting_confirmation", origin: "atlas", categoryId: "outros", dedupeKey: `atlas:${requestId}`,
+    createdAt: "2026-08-13T12:00:00.000Z", updatedAt: "2026-08-13T12:00:00.000Z",
+  } } }], storage);
+  assert.throws(
+    () => decideAtlasRequest(data, requestId, "approve", storage, "2026-08-13T12:01:00.000Z"),
+    /Escolha a conta correta/,
+  );
+  const approved = decideAtlasRequest(data, requestId, "approve", storage, "2026-08-13T12:01:00.000Z", "itau");
+  assert.equal(approved.data.transactions[0].sourceAccountId, "itau");
+});
+
 test("rejeição fica auditável e não cria lançamento", async () => {
   const storage = memoryStorage();
   const session = await paired(storage);

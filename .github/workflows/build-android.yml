@@ -2,9 +2,9 @@ name: Build Cofrinho Android APK
 
 on:
   push:
-    branches: ["feat/android-atlas-bridge", "agent/**"]
+    branches: ["feat/android-atlas-bridge", "feat/atlas-engine-v1-stabilization", "agent/**"]
   pull_request:
-    branches: ["feat/android-atlas-bridge"]
+    branches: ["feat/android-atlas-bridge", "feat/atlas-engine-v1-stabilization"]
   workflow_dispatch:
 
 permissions:
@@ -59,18 +59,18 @@ jobs:
           unzip -t "$APK" >/dev/null
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
           test -x "$AAPT"
-          "$AAPT" dump badging "$APK" | grep -F "package: name='com.pablo.cofrinho' versionCode='121' versionName='1.2.1'"
+          "$AAPT" dump badging "$APK" | grep -F "package: name='com.pablo.cofrinho' versionCode='130' versionName='1.3.0'"
           unzip -l "$APK" | grep -F "assets/public/index.html"
           "$AAPT" dump xmltree "$APK" AndroidManifest.xml | grep -F "CofrinhoBridgeProvider"
           mkdir -p dist-android
-          cp "$APK" "dist-android/Cofrinho-Android-1.2.1-Atlas.apk"
+          cp "$APK" "dist-android/Cofrinho-Android-1.3.0-Atlas.apk"
 
       - name: Publish test APK in GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="cofrinho-android-1.2.1-atlas"
+          TAG="cofrinho-android-1.3.0-atlas-v1"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --target "$GITHUB_SHA" --prerelease               --title "Cofrinho Android 1.2.1 — ponte nativa Atlas"               --notes "Cofrinho Android com ponte privada para o Atlas Pocket. Leituras são limitadas e propostas exigem confirmação no Cofrinho."
+            gh release create "$TAG" --target "$GITHUB_SHA" --prerelease               --title "Cofrinho Android 1.3.0 — Atlas V1"               --notes "Cofrinho Android com motor financeiro atual, ponte privada corrigida, simulação de compras e confirmação obrigatória."
           fi
-          gh release upload "$TAG" dist-android/Cofrinho-Android-1.2.1-Atlas.apk --clobber
+          gh release upload "$TAG" dist-android/Cofrinho-Android-1.3.0-Atlas.apk --clobber

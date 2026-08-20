@@ -11,6 +11,6 @@ await writeFile(manifestPath, manifest);
 
 const gradlePath = "android/app/build.gradle";
 let gradle = await readFile(gradlePath, "utf8");
-gradle = gradle.replace(/versionCode\s+\d+/, "versionCode 121");
-gradle = gradle.replace(/versionName\s+"[^"]+"/, 'versionName "1.2.1"');
+gradle = gradle.replace(/versionCode\s+\d+/, "versionCode 130");
+gradle = gradle.replace(/versionName\s+"[^"]+"/, 'versionName "1.3.0"');
 await writeFile(gradlePath, gradle);

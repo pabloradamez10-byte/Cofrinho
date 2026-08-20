@@ -17,6 +17,7 @@ public class CofrinhoBridgeProvider extends ContentProvider {
   @Override public Bundle call(String method, String arg, Bundle extras) {
     Bundle out = new Bundle();
     try {
+      if (!isAuthorizedCaller()) return error("unauthorized_caller", "Somente o Atlas Pocket instalado pode usar esta ponte");
       if ("pair".equals(method)) return pair(extras);
       if (!"request".equals(method)) return error("unsupported_method", "Método não permitido");
       return request(extras);
@@ -47,6 +48,7 @@ public class CofrinhoBridgeProvider extends ContentProvider {
     if ("read.summary".equals(action)) result = summary(snapshot);
     else if ("read.accounts".equals(action)) result.put("accounts", snapshot.optJSONArray("accounts") == null ? new JSONArray() : snapshot.optJSONArray("accounts"));
     else if ("read.goals".equals(action)) result.put("goals", snapshot.optJSONArray("goals") == null ? new JSONArray() : snapshot.optJSONArray("goals"));
+    else if ("simulate.purchase".equals(action)) result = simulatePurchase(snapshot, new JSONObject(e.getString("payload", "{}")));
     else if ("propose.transaction".equals(action)) return propose(p, e);
     else return error("forbidden_action", "Ação não permitida");
     Bundle out = new Bundle(); out.putBoolean("ok", true); out.putString("result", result.toString()); return out;
@@ -58,7 +60,48 @@ public class CofrinhoBridgeProvider extends ContentProvider {
     long balance = 0, income = 0, expense = 0;
     for (int i=0;i<accounts.length();i++) balance += accounts.optJSONObject(i).optLong("openingBalanceCents", 0);
     for (int i=0;i<txs.length();i++) { JSONObject t=txs.optJSONObject(i); if (t==null || "deleted".equals(t.optString("status"))) continue; long a=t.optLong("amountCents",0); if ("income".equals(t.optString("type"))) { income+=a; balance+=a; } else if ("expense".equals(t.optString("type"))) { expense+=a; balance-=a; } }
-    return new JSONObject().put("balanceCents",balance).put("incomeCents",income).put("expenseCents",expense).put("accountCount",accounts.length());
+    JSONObject metrics = data.optJSONObject("atlasBridge");
+    long free = metrics == null ? balance : metrics.optLong("freeMoneyCents", balance);
+    long committed = metrics == null ? 0 : metrics.optLong("committedCents", 0);
+    long reserved = metrics == null ? 0 : metrics.optLong("reservedCents", 0);
+    long capacity = metrics == null ? 0 : metrics.optLong("monthlyCapacityCents", 0);
+    return new JSONObject().put("balanceCents",balance).put("totalBalanceCents",balance)
+      .put("freeMoneyCents",free).put("committedCents",committed).put("reservedCents",reserved)
+      .put("monthlyCapacityCents",capacity).put("incomeCents",income).put("expenseCents",expense)
+      .put("accountCount",accounts.length()).put("calculatedAt", metrics == null ? JSONObject.NULL : metrics.optString("calculatedAt"));
+  }
+
+  private JSONObject simulatePurchase(JSONObject data, JSONObject payload) throws Exception {
+    String itemName = payload.optString("itemName", "Compra simulada").trim();
+    int count = payload.optInt("installmentCount", 0);
+    long installment = payload.optLong("installmentCents", 0);
+    if (itemName.isEmpty() || count < 1 || count > 120 || installment <= 0) throw new IllegalArgumentException("Simulação inválida");
+    JSONObject metrics = data.optJSONObject("atlasBridge");
+    if (metrics == null) throw new IllegalStateException("Atualize o Cofrinho antes de simular uma compra");
+    long free = metrics.optLong("freeMoneyCents", 0);
+    long capacity = metrics.optLong("monthlyCapacityCents", 0);
+    JSONArray baseForecasts = metrics.optJSONArray("forecasts");
+    JSONArray forecasts = new JSONArray();
+    long lowest = Long.MAX_VALUE;
+    if (baseForecasts != null) for (int i = 0; i < baseForecasts.length(); i++) {
+      JSONObject base = baseForecasts.optJSONObject(i); if (base == null) continue;
+      int days = base.optInt("days", (i + 1) * 30);
+      long projected = base.optLong("projectedBalanceCents", 0);
+      long simulated = projected - installment * (long)Math.ceil(days / 30.0);
+      lowest = Math.min(lowest, simulated);
+      forecasts.put(new JSONObject().put("days", days).put("projectedBalanceCents", projected).put("simulatedBalanceCents", simulated));
+    }
+    if (lowest == Long.MAX_VALUE) lowest = free - installment;
+    boolean immediate = free >= installment;
+    boolean monthly = installment <= capacity;
+    boolean projected = lowest >= 0;
+    boolean approved = immediate && monthly && projected;
+    String reason = !immediate ? "insufficient_free_money" : !monthly ? "insufficient_monthly_capacity" : !projected ? "negative_projected_balance" : "affordable";
+    return new JSONObject().put("itemName", itemName).put("recommendation", approved ? "can_buy" : "do_not_buy")
+      .put("reasonCode", reason).put("installmentCents", installment).put("installmentCount", count)
+      .put("totalPurchaseCents", installment * count).put("freeMoneyCents", free)
+      .put("monthlyCapacityCents", capacity).put("monthlyCapacityAfterCents", capacity - installment)
+      .put("lowestProjectedBalanceCents", lowest).put("forecasts", forecasts).put("readOnly", true);
   }
 
   private Bundle propose(android.content.SharedPreferences p, Bundle e) throws Exception {
@@ -69,9 +112,14 @@ public class CofrinhoBridgeProvider extends ContentProvider {
     JSONArray inbox = new JSONArray(p.getString("inbox","[]"));
     String requestId=e.getString("requestId", UUID.randomUUID().toString());
     for(int i=0;i<inbox.length();i++) if(requestId.equals(inbox.optJSONObject(i).optString("requestId"))) return error("duplicate_request","Pedido duplicado");
-    JSONObject item=new JSONObject().put("requestId",requestId).put("action","propose.transaction").put("status","awaiting_confirmation").put("createdAt",System.currentTimeMillis()).put("payload",payload);
+    long createdAt = System.currentTimeMillis();
+    tx.put("id", "atlas-" + requestId).put("status", "awaiting_confirmation").put("origin", "atlas")
+      .put("categoryId", tx.optString("categoryId", "outros")).put("dedupeKey", "atlas:" + requestId)
+      .put("createdAt", new java.util.Date(createdAt).toInstant().toString()).put("updatedAt", new java.util.Date(createdAt).toInstant().toString());
+    JSONObject item=new JSONObject().put("requestId",requestId).put("action","propose.transaction").put("status","awaiting_confirmation").put("createdAt",createdAt).put("payload",new JSONObject().put("transaction", tx));
     inbox.put(item); p.edit().putString("inbox",inbox.toString()).apply();
-    Bundle out=new Bundle(); out.putBoolean("ok",true); out.putBoolean("requiresConfirmation",true); out.putString("requestId",requestId); return out;
+    Bundle out=new Bundle(); out.putBoolean("ok",true); out.putBoolean("requiresConfirmation",true); out.putString("requestId",requestId);
+    out.putString("result", new JSONObject().put("requestId", requestId).put("requiresConfirmation", true).put("status", "awaiting_confirmation").toString()); return out;
   }
 
   private boolean isAuthorizedCaller() {

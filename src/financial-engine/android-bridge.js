@@ -1,5 +1,8 @@
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { loadAtlasRequests, persistAtlasRequests } from "./local-api.js";
+import { calculateFinancialPosition } from "./engine.js";
+import { calculateMonthlyPlanningCapacity } from "./decisions.js";
+import { forecastFinancialFuture } from "./planning.js";
 
 const NativeBridge = registerPlugin("CofrinhoBridge");
 
@@ -9,7 +12,15 @@ export function isNativeCofrinho() {
 
 export async function syncNativeFinancialSnapshot(data) {
   if (!isNativeCofrinho() || !data) return { ok: false, skipped: true };
-  await NativeBridge.syncFinancialData({ data: JSON.stringify(data) });
+  const today = new Date().toISOString().slice(0, 10);
+  const position = calculateFinancialPosition(data.accounts, data.transactions, today);
+  const atlasBridge = {
+    calculatedAt: today,
+    ...position,
+    monthlyCapacityCents: calculateMonthlyPlanningCapacity(data, today),
+    forecasts: [30, 60, 90].map((days) => forecastFinancialFuture(data, today, days)),
+  };
+  await NativeBridge.syncFinancialData({ data: JSON.stringify({ ...data, atlasBridge }) });
   return { ok: true };
 }
 

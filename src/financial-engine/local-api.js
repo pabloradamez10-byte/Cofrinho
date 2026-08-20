@@ -130,14 +130,24 @@ export function handleAtlasRequest(sessionToken, message, data, storage = localS
   throw new Error("Ação não permitida pela API local do Cofrinho.");
 }
 
-export function decideAtlasRequest(data, requestId, decision, storage = localStorage, decidedAt = new Date().toISOString()) {
+export function decideAtlasRequest(data, requestId, decision, storage = localStorage, decidedAt = new Date().toISOString(), accountId = null) {
   const requests = loadAtlasRequests(storage);
   const target = requests.find((request) => request.requestId === requestId);
   if (!target || target.status !== "awaiting_confirmation") throw new Error("Pedido do Atlas não está disponível para decisão.");
   if (!['approve', 'reject'].includes(decision)) throw new TypeError("Decisão inválida.");
   let next = clone(data);
   if (decision === "approve") {
-    const transaction = { ...target.payload.transaction, status: "confirmed", confirmedAt: decidedAt, updatedAt: decidedAt };
+    const pending = target.payload.transaction;
+    const selectedAccount = accountId || pending.sourceAccountId || pending.destinationAccountId;
+    if (!selectedAccount || !data.accounts.some((account) => account.id === selectedAccount && account.active !== false)) {
+      throw new Error("Escolha a conta correta antes de aprovar o lançamento.");
+    }
+    const transaction = {
+      ...pending,
+      sourceAccountId: pending.type === "expense" ? selectedAccount : pending.sourceAccountId,
+      destinationAccountId: pending.type === "income" ? selectedAccount : pending.destinationAccountId,
+      status: "confirmed", confirmedAt: decidedAt, updatedAt: decidedAt,
+    };
     validateTransaction(transaction, new Set(data.accounts.map((account) => account.id)));
     if (findDuplicate(transaction, data.transactions).duplicate) throw new Error("O lançamento já existe; aprovação cancelada.");
     next.transactions.push(transaction);
