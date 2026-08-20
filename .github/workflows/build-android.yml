@@ -57,18 +57,18 @@ jobs:
           unzip -t "$APK" >/dev/null
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
           test -x "$AAPT"
-          "$AAPT" dump badging "$APK" | grep -F "package: name='com.pablo.cofrinho'"
+          "$AAPT" dump badging "$APK" | grep -F "package: name='com.pablo.cofrinho' versionCode='121' versionName='1.2.1'"
           unzip -l "$APK" | grep -F "assets/public/index.html"
           "$AAPT" dump xmltree "$APK" AndroidManifest.xml | grep -F "CofrinhoBridgeProvider"
           mkdir -p dist-android
-          cp "$APK" "dist-android/Cofrinho-Android-1.2.0-Atlas.apk"
+          cp "$APK" "dist-android/Cofrinho-Android-1.2.1-Atlas.apk"
 
       - name: Publish test APK in GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="cofrinho-android-1.2.0-atlas"
+          TAG="cofrinho-android-1.2.1-atlas"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --target "$GITHUB_SHA" --prerelease               --title "Cofrinho Android 1.2.0 — ponte Atlas"               --notes "Cofrinho Android com ponte privada para o Atlas Pocket. Leituras são limitadas e propostas exigem confirmação no Cofrinho."
+            gh release create "$TAG" --target "$GITHUB_SHA" --prerelease               --title "Cofrinho Android 1.2.1 — ponte nativa Atlas"               --notes "Cofrinho Android com ponte privada para o Atlas Pocket. Leituras são limitadas e propostas exigem confirmação no Cofrinho."
           fi
-          gh release upload "$TAG" dist-android/Cofrinho-Android-1.2.0-Atlas.apk --clobber
+          gh release upload "$TAG" dist-android/Cofrinho-Android-1.2.1-Atlas.apk --clobber
