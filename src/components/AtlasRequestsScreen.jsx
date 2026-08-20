@@ -7,7 +7,8 @@ import { brl } from "../lib/helpers";
 export default function AtlasRequestsScreen({ onBack, onDecide }) {
   const [requests, setRequests] = useState(() => loadAtlasRequests());
   const [pairing, setPairing] = useState(null);
-  const [message, setMessage] = useState("");\n  const [connected, setConnected] = useState(false);
+  const [message, setMessage] = useState("");
+  const [connected, setConnected] = useState(false);
   useEffect(() => { const refresh = () => setRequests(loadAtlasRequests()); window.addEventListener("cofrinho:atlas-requests-changed", refresh); return () => window.removeEventListener("cofrinho:atlas-requests-changed", refresh); }, []);
   useEffect(() => {
     const refreshConnection = () => getNativeAtlasConnectionStatus().then((result) => setConnected(Boolean(result?.connected))).catch(() => setConnected(false));
