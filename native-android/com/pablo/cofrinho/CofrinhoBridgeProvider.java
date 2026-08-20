@@ -9,7 +9,9 @@ import java.util.UUID;
 import org.json.*;
 
 public class CofrinhoBridgeProvider extends ContentProvider {
-  private static final long SESSION_MS = 30L * 24 * 60 * 60_000L;\n  private static final String ATLAS_PACKAGE = "com.pablo.atlaspocket";\n  private static final String PROTOCOL = "cofrinho-android-v1";
+  private static final long SESSION_MS = 30L * 24 * 60 * 60_000L;
+  private static final String ATLAS_PACKAGE = "com.pablo.atlaspocket";
+  private static final String PROTOCOL = "cofrinho-android-v1";
   @Override public boolean onCreate() { return true; }
 
   @Override public Bundle call(String method, String arg, Bundle extras) {
@@ -38,7 +40,8 @@ public class CofrinhoBridgeProvider extends ContentProvider {
     if (!p.getString("token", "").equals(e.getString("token")) || System.currentTimeMillis() > p.getLong("token_expires", 0)) return error("unauthorized", "Pareamento necessário");
     long timestamp = e.getLong("timestamp", 0);
     if (Math.abs(System.currentTimeMillis() - timestamp) > 5 * 60_000L) return error("expired_request", "Pedido expirado");
-    p.edit().putLong("token_expires", System.currentTimeMillis() + SESSION_MS).apply();\n    String action = e.getString("action", "");
+    p.edit().putLong("token_expires", System.currentTimeMillis() + SESSION_MS).apply();
+    String action = e.getString("action", "");
     JSONObject snapshot = new JSONObject(p.getString("snapshot", "{}"));
     JSONObject result = new JSONObject();
     if ("read.summary".equals(action)) result = summary(snapshot);
@@ -71,7 +74,12 @@ public class CofrinhoBridgeProvider extends ContentProvider {
     Bundle out=new Bundle(); out.putBoolean("ok",true); out.putBoolean("requiresConfirmation",true); out.putString("requestId",requestId); return out;
   }
 
-  private boolean isAuthorizedCaller() {\n    String caller = getCallingPackage();\n    return ATLAS_PACKAGE.equals(caller);\n  }\n\n  private Bundle error(String code,String message){ Bundle b=new Bundle(); b.putBoolean("ok",false); b.putString("errorCode",code); b.putString("error",message); return b; }
+  private boolean isAuthorizedCaller() {
+    String caller = getCallingPackage();
+    return ATLAS_PACKAGE.equals(caller);
+  }
+
+  private Bundle error(String code,String message){ Bundle b=new Bundle(); b.putBoolean("ok",false); b.putString("errorCode",code); b.putString("error",message); return b; }
   @Override public Cursor query(Uri u,String[] p,String s,String[] a,String so){return null;}
   @Override public String getType(Uri u){return null;}
   @Override public Uri insert(Uri u,ContentValues v){return null;}
